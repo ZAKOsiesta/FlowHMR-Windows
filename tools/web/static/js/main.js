@@ -192,7 +192,9 @@ $("btnStopRun").addEventListener("click", async () => {
   if (!id) return;
   $("btnStopRun").disabled = true;
   try {
-    await api.cancelJob(id);
+    const job = await api.getJob(id);
+    if (job.status === 'done' && ['queued', 'running', 'cancel_requested'].includes(job.camera_state)) await api.cancelCamera(id);
+    else await api.cancelJob(id);
     if (id === currentJob) await poll();
   } catch (e) {
     if (id === currentJob) progress.showActionError(e.message ? e : m("job.stop_failed"));
@@ -200,6 +202,9 @@ $("btnStopRun").addEventListener("click", async () => {
 });
 $("btnRerun").addEventListener("click", () => rerunCurrent());
 $("btnSafeRerun").addEventListener("click", () => rerunCurrent({ vggt_interval: 0, static_camera: false }));
+window.addEventListener('flowhmr:cameraprogress', (event) => {
+  if (event.detail.id === currentJob) void poll();
+});
 
 async function rerunCurrent(overrides) {
   if (!currentJob) return;

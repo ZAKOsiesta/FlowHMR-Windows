@@ -1,6 +1,7 @@
 import { $, el, personColor, show } from "./utils.js";
 import { appError, message as m, setText } from "./i18n.js";
 import * as api from "./api.js";
+import { placedCameraTransform } from './paired-camera.js';
 import { unzipSync, zipSync } from '../vendor/three/fbx/libs/fflate.module.js';
 
 const FORMAT_STORAGE = "flowhmr-export-format";
@@ -66,8 +67,8 @@ export function initMotionExport(getBodyVariant, viewer) {
     const roles = targets();
     const cameraSupported = ['vmd', 'flowhmr', 'npz'].includes(profile);
     show('pairedCameraOptions', cameraSupported);
-    includeCamera.disabled = !!pending || result?.cameraState !== 'ready';
-    if (!cameraSupported || result?.cameraState !== 'ready') includeCamera.checked = false;
+    includeCamera.disabled = !!pending || !result;
+    if (!cameraSupported) includeCamera.checked = false;
     setText($('pairedCameraHint'), m(result?.cameraState === 'ready' ? 'export.camera_ready' : 'export.camera_missing'));
     characterOption.disabled = characterOption.hidden = !roles.length;
     if (roles.length) setText(characterOption, roles.length === 1
@@ -176,7 +177,10 @@ export function initMotionExport(getBodyVariant, viewer) {
       // Preserve the user's selection while marking the operation busy.
       sync();
       try {
-        await api.prepareCamera(id);
+        await api.prepareCamera(id, operation.signal, (status) => {
+          if (dialog.open) setText($('pairedCameraHint'), status.message || m('export.camera_ready'));
+        });
+        result.cameraState = 'ready';
         let files, transform = { scale: 1, translation: [0, 0, 0] };
         if (targetVmd) {
           const target = await makePmxVmd(viewer, people, result.filename, operation.signal);
@@ -289,7 +293,7 @@ async function makePmxVmd(viewer, people, filename, signal) {
     const clone = asset.clone();
     try {
       const solver = createPmxRetarget(clone, asset.rest, actor.motion, { poseOffsets: actor.poseOffsets });
-      cameraTransform ??= solver.cameraTransform;
+      cameraTransform ??= placedCameraTransform(solver.cameraTransform, actor.yaw, actor.offset);
       const bytes = await encodePmxVmd({
         solver, rest: asset.rest, modelName: asset.name,
         frameCount: actor.motion.frames, fps: actor.fps, startFrame: actor.start, sceneEndFrame: actor.sceneEnd,

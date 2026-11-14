@@ -7,7 +7,7 @@ import { appError, message as m, setAttr, setText, t } from "./i18n.js";
 import * as api from "./api.js";
 import { initPreviewCharacter } from "./preview-character.js";
 import { initPoseEditor } from "./pose-editor.js";
-import { applySourceCamera, sourceViewport } from './paired-camera.js';
+import { applySourceCamera, sourceViewport, placedCameraTransform } from './paired-camera.js';
 
 const BODY_STORAGE = "flowhmr-body-variant";
 const MOUSE_MODE_STORAGE = "flowhmr-mouse-mode";
@@ -317,14 +317,15 @@ export function initViewer(preview) {
   $("toggleProjection").onclick = toggleProjection;
   function updateSourceAvailability() {
     const unsupported = actors.some((actor) => actor.character && actor.character.asset.kind !== 'pmx');
-    $('sourceCameraView').disabled = state.cameraState !== 'ready' || unsupported;
+    $('sourceCameraView').disabled = !state.jobId || unsupported || state.cameraState === 'preparing';
     setAttr($('sourceCameraView'), 'title', unsupported ? m('view.source_camera_pmx_only') : '');
     if (unsupported && sourceView) setProjection(orbitCamera);
   }
   function cameraTransform(people = []) {
     const selected = new Set(people.map(String));
     const actor = actors.find((a) => !state.scene || !selected.size || selected.has(String(a.number)));
-    return actor?.character?.rig.cameraTransform ?? { scale: 1, translation: [0, 0, 0] };
+    return placedCameraTransform(actor?.character?.rig.cameraTransform ?? { scale: 1, translation: [0, 0, 0] },
+      actor?.group.rotation.y ?? 0, actor?.group.position.toArray() ?? [0, 0, 0]);
   }
   function updateSourceCamera() {
     if (!sourceView || !cameraData || !state.meta) return;
@@ -338,10 +339,15 @@ export function initViewer(preview) {
     const id = state.jobId;
     try {
       if (!cameraData) {
+        state.cameraState = 'preparing';
+        updateSourceAvailability();
         await api.prepareCamera(id);
         const data = await api.getCamera(id);
         if (id !== state.jobId) return;
         cameraData = data;
+        state.cameraState = 'ready';
+        state.meta.camera_state = 'ready';
+        syncGround();
       }
       clearOrbitInertia();
       orbitCamera = camera;
@@ -350,7 +356,9 @@ export function initViewer(preview) {
       camera = recoveredCamera;
       $('sourceCameraView').setAttribute('aria-pressed', 'true');
       updateSourceCamera();
-    } catch (error) { setText($('viewportName'), error); }
+    } catch (error) {
+      if (id === state.jobId) { state.cameraState = 'failed'; setText($('viewportName'), error); }
+    } finally { updateSourceAvailability(); }
   };
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.onclick = () => setView(button.dataset.view);
@@ -1158,7 +1166,7 @@ export function initViewer(preview) {
       if (sourceView) setProjection(orbitCamera);
       state.cameraState = cameraState;
       cameraData = null;
-      $('sourceCameraView').disabled = cameraState !== 'ready';
+      $('sourceCameraView').disabled = true;
       loadController?.abort();
       bodyController?.abort();
       bodyController = null;
@@ -1216,6 +1224,7 @@ export function initViewer(preview) {
       setFrame(0);
       frameDefaultView();
       setPlaying(false);
+      updateSourceAvailability();
       void character.showForJob();
       void Promise.all(inspections).then((results) => {
         if (!load.signal.aborted && state.jobId === jobId) results.forEach((info, i) => setInspection(actors[i], info));

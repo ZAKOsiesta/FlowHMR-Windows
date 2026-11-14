@@ -21,13 +21,27 @@ def camera_bundle(directory, format_name, joints, transform=None):
     if joints is not None:
         joints = np.asarray(joints) * scale + translation
     with np.load(root / 'motion.npz', allow_pickle=False) as motion:
-        if len(motion['trans']) != len(camera.RT):
-            raise ValueError('Paired camera and motion lengths differ')
-        gaps = gap_report(motion, camera.track_start)
+        if 'trans' in motion:
+            if len(motion['trans']) != len(camera.RT):
+                raise ValueError('Paired camera and motion lengths differ')
+            gaps = gap_report(motion, camera.track_start)
+        else:
+            from .timeline import intervals
+            scene = json.loads((root / 'scene.json').read_text(encoding='utf8'))
+            if scene['num_frames'] != len(camera.RT):
+                raise ValueError('Shared camera and scene lengths differ')
+            gaps = dict(fps=30, track_start=camera.track_start, interval_convention='half_open_source_frames',
+                        people=scene['people'], gaps=[[a+camera.track_start, b+camera.track_start]
+                        for a,b in intervals(~camera.camera_valid)])
     report = {'camera_transform': {'scale': scale, 'translation': translation.tolist()},
               'motion': gaps, 'camera': {'format': format_name},
               'source_world': 'paired_motion_y_up_metres',
               'required_aspect_ratio': float(camera.image_size_hw[1] / camera.image_size_hw[0])}
+    if (root / 'scene.json').exists():
+        report['character_scale_policy'] = 'Camera uses the first selected character scale; different body sizes cannot all preserve the same projection.'
+    detail = root / 'camera/report.json'
+    if detail.exists():
+        report['recovery'] = json.loads(detail.read_text(encoding='utf8'))
     folder = root / 'camera/exports'
     folder.mkdir(parents=True, exist_ok=True)
     with TemporaryDirectory(prefix='paired-', dir=folder) as temp:

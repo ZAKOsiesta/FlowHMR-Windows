@@ -1,4 +1,11 @@
 // Full pixel intrinsics, independent of the viewer's free-orbit projection.
+export function placedCameraTransform(transform, yaw = 0, offset = [0, 0, 0]) {
+  const { scale: k, translation: b } = transform;
+  const c = Math.cos(yaw), s = Math.sin(yaw);
+  const rotated = [c*b[0] + s*b[2], b[1], -s*b[0] + c*b[2]];
+  return { scale: k, translation: rotated.map((x, i) => x + (1-k)*offset[i]) };
+}
+
 export function applySourceCamera(camera, data, frame, transform = { scale: 1, translation: [0, 0, 0] }) {
   if (!data || frame < 0 || frame >= data.RT.length || !data.camera_valid[frame]) return false;
   const R = data.RT[frame], K = data.K[frame], [h, w] = data.image_size_hw;

@@ -99,6 +99,8 @@ def align_tracks(tracks):
         t["error"] = float(np.median(np.linalg.norm(delta, axis=1)))
         x, z = fitted - origin
         t["offset"] = [float(x), -float(t["floor"]), float(z)]
+    from flowhmr.multishot.shared import shared_frame
+    ref['shared_frame'] = shared_frame(tracks, shared, scale, origin)
     return scale
 
 
@@ -211,12 +213,16 @@ def _save_scene_motion(destination, tracks, people):
     tmp.replace(destination / "motion.npz")
 
 
-def build_group_scene(destination, members, inspection, acquire_sam, device, *, check=lambda: None, notify=lambda _: None):
+def build_group_scene(destination, members, inspection, acquire_sam, device, *, check=lambda: None, notify=lambda _: None, camera_only=False):
     """Create one scene manifest and one aligned motion file for completed jobs."""
     entries = [(job, Path(directory)) for job, directory in members]
     destination = Path(destination)
     destination.mkdir(parents=True, exist_ok=True)
     video = entries[0][1] / "input" / "input_30fps.mp4"
+    existing = json.loads((destination / 'scene.json').read_text(encoding='utf8')) if camera_only else None
+    if camera_only:
+        from flowhmr.multishot.runtime import digest
+        original_motion = digest(destination / 'motion.npz')
     tracks = []
     for job, directory in entries:
         check()
@@ -248,6 +254,32 @@ def build_group_scene(destination, members, inspection, acquire_sam, device, *, 
         t["rt"] = rt[frames - first]
         t["motion"] = t["joints"][frames - t["range"][0]][:, SMPL_JOINTS]
     scale = align_tracks(tracks)
+    if camera_only:
+        # Upgrade an old scene using its saved scale and placements. Re-estimate
+        # only the common orientation/observation origin, never the body scene.
+        from flowhmr.multishot.shared import shared_frame, save_shared_inputs
+        saved = {p['id']: p for p in existing['people']}
+        if set(saved) != {t['job']['id'] for t in tracks}:
+            raise ValueError('旧多人场景与人物列表不一致。')
+        ref = tracks[0]
+        shared = ref['shared_frame']['rotation']
+        scale = float(existing['camera_scale'])
+        origin = np.median(ref['placement'] + scale*ref['camera_xz'], axis=0)
+        for track in tracks:
+            person = saved[track['job']['id']]
+            track['yaw'], track['offset'] = person['yaw'], person['offset']
+        ref['shared_frame'] = shared_frame(tracks, shared, scale, origin)
+        # Saved first-person placement is normally (0,-floor,0); preserve it.
+        ref['shared_frame']['translation'] += np.asarray(ref['offset']) + [0., ref['floor'], 0.]
+        import cv2
+        cap = cv2.VideoCapture(str(video))
+        hw = (int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)), int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)))
+        cap.release()
+        check()
+        if original_motion != digest(destination / 'motion.npz'):
+            raise ValueError('多人动作在恢复机位期间发生变化。')
+        save_shared_inputs(destination, tracks, rt, K, first, last, hw)
+        return existing
     people = [dict(id=t["job"]["id"], person=t["job"]["selected_person"] + 1,
                    start=t["range"][0], end=t["range"][1], yaw=t["yaw"], offset=t["offset"],
                    body_reference=t["body_reference"],
@@ -258,6 +290,14 @@ def build_group_scene(destination, members, inspection, acquire_sam, device, *, 
         scene["body_reference"] = tracks[0]["body_reference"]
     check()
     _save_scene_motion(destination, tracks, people)
+    # Persist the exact common fit while it is available, with no extra model
+    # work. Lazy recovery must not transform one person's separately fitted camera.
+    from flowhmr.multishot.shared import save_shared_inputs
+    import cv2
+    cap = cv2.VideoCapture(str(video))
+    hw = (int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)), int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)))
+    cap.release()
+    save_shared_inputs(destination, tracks, rt, K, first, last, hw)
     tmp = destination / "scene.json.part"
     tmp.write_text(json.dumps(scene, ensure_ascii=False, allow_nan=False), encoding="utf-8")
     tmp.replace(destination / "scene.json")

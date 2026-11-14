@@ -1,8 +1,14 @@
 # Paired camera export
 
-P1 adds an optional paired camera to completed jobs. The source body and PMX characters can use **View → Source camera**. In the export dialog, **Include camera** is available for VMD, FlowHMR FBX and NPZ when the job already contains a validated camera. The downloaded ZIP contains independent motion and camera files, full camera parameters, an approximation report and import instructions.
+Completed jobs support **View → Source camera** for the source body and PMX characters. The first click recovers the camera when needed. **Include camera** in VMD, FlowHMR FBX and NPZ export also triggers recovery. The downloaded ZIP contains independent motion and camera files, full camera parameters, a recovery/approximation report and import instructions.
 
-This stage serves imported camera results. It does not compute a camera for an older job. Missing-camera requests return `409 camera_not_ready`; camera errors leave the completed motion usable. Lazy computation and shared multi-person cameras belong to P2.
+Camera recovery shares the existing job queue, with separate queued/running/ready/failed/cancelled state. Stop affects only the camera when motion is complete. Click Source camera again to retry. Missing outputs are rebuilt; validated raw-camera and SAM caches are reused. Older jobs need their normalized source video and detection boxes. Missing person observations run SAM only, never Flow generation. GeoCalib is optional; absent, unsupported or dispersed gravity uses body-lean continuity across cuts, a five-second leveling window and a ground constraint.
+
+The numerical recovery boundary takes joint arrays, camera matrices, observations and validity. Body-reference selection belongs to the existing inspection loader. No camera operation writes poses, shape parameters or motion files. Failures are reported independently and valid shots remain usable. Without a trusted scale population, unsupported camera motion becomes a fixed person-anchored center with slow rotation. Shots shorter than 12 frames retain only their fixed similarity. Low-visibility person residuals are diagnostic and do not veto the stability policy chosen in V3.
+
+Group scenes persist the exact shared rotation, scale and origin from `build_group_scene`. Lazy export uses that common frame. For old scenes, only the missing common-camera evidence is recovered while saved scene placements, scale and motion files remain unchanged. Multi-person cut linking is not supported. When selected characters have different scales, the camera follows the first selected character. For scene placement `R,p`, its affine shift is `R b + (1-k)p`; no individual actor camera is used as a scene camera.
+
+The service boundary is `CameraTasks.prepare/status/cancel/run`; HTTP routes are `/camera/prepare`, `/camera/status`, `/camera/cancel`, `/camera/report` and `/camera/export`. Preparation returns 202 while queued/running. Existing motion job state stays `done`. A camera file is committed atomically after the frozen motion digest is checked.
 
 ## Data contract
 

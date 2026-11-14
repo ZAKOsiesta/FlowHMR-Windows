@@ -113,7 +113,26 @@ export const rerunJob = (id, params) => postJson(`/api/jobs/${id}/rerun`, params
 export const cancelJob = (id) => postJson(`/api/jobs/${id}/cancel`);
 export const prepareScene = (id) => postJson(`/api/jobs/${id}/scene`);
 export const getCamera = (id, signal) => json(`/api/jobs/${id}/camera`, { signal });
-export const prepareCamera = (id) => postJson(`/api/jobs/${id}/camera/prepare`);
+export const cancelCamera = (id) => postJson(`/api/jobs/${id}/camera/cancel`);
+export const getCameraStatus = (id, signal) => json(`/api/jobs/${id}/camera/status`, { signal, cache: 'no-store' });
+export const getCameraReport = (id) => json(`/api/jobs/${id}/camera/report`, { cache: 'no-store' });
+export async function prepareCamera(id, signal, onProgress = () => {}) {
+  signal?.throwIfAborted();
+  let status = await postJson(`/api/jobs/${id}/camera/prepare`);
+  while (true) {
+    signal?.throwIfAborted();
+    onProgress(status);
+    window.dispatchEvent(new CustomEvent('flowhmr:cameraprogress', { detail: { id, ...status } }));
+    if (status.camera_state === 'ready') return status;
+    if (['failed', 'cancelled'].includes(status.camera_state)) throw new Error(status.error || status.message);
+    await new Promise((resolve, reject) => {
+      const abort = () => { clearTimeout(timer); reject(signal.reason); };
+      const timer = setTimeout(() => { signal?.removeEventListener('abort', abort); resolve(); }, 700);
+      signal?.addEventListener('abort', abort, { once: true });
+    });
+    status = await getCameraStatus(id, signal);
+  }
+}
 export const exportCamera = (id, format, transform, signal) => request(`/api/jobs/${id}/camera/export`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, signal,
   body: JSON.stringify({ format, transform: transform ?? { scale: 1, translation: [0, 0, 0] } }),

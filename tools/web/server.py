@@ -690,6 +690,8 @@ def restore_jobs():
                         )
                     stage.update(status="cancelled" if cancelled else "failed", end=interrupted_at)
         saved_params = job.get("params", {})
+        from flowhmr.multishot.tasks import restore_camera_state
+        restore_camera_state(job)
         try:
             strength = _read_sole_fit_strength(saved_params)
         except ValueError:
@@ -772,8 +774,16 @@ def worker_loop():
         job_id = JOB_QUEUE.get()
         if isinstance(job_id, tuple):
             try:
-                _assemble_scene(job_id[1], automatic=False)
+                if job_id[0] == 'camera':
+                    CAMERA_TASKS.run(job_id[1])
+                else:
+                    _assemble_scene(job_id[1], automatic=False)
             finally:
+                if ENGINE is not None:
+                    try:
+                        ENGINE.release_stage()
+                    except Exception:
+                        traceback.print_exc()
                 JOB_QUEUE.task_done()
             continue
         try:
@@ -1983,7 +1993,7 @@ def api_job(job_id):
         job["has_vmd"] = os.path.isfile(motion)
         job["has_vrma"] = job["has_vmd"]
         job["has_fbx"] = job["has_vmd"] and fbx_export_available(job_body_reference(job))
-        job["camera_state"] = 'ready' if os.path.isfile(os.path.join(os.path.dirname(motion), 'camera', 'camera.npz')) else job.get('camera_state', 'none')
+        job['camera_state'] = CAMERA_TASKS.status(job_id)['camera_state']
     canonical = os.path.join(job_dir(job_id), SUB, f"{SUB}_30fps.mp4")
     job["has_preview_video"] = os.path.isfile(canonical)
     if not job.get("source_frames") and job["status"] in ("done", "cancelled", "failed"):
@@ -2106,7 +2116,8 @@ def api_delete_jobs():
                     skipped.append({"id": job_id, "reason": "not found"})
                 continue
             members = _batch_members_locked(job_id) or [job]
-            if any(j["status"] in ACTIVE_STATUSES for j in members) or job.get("scene_state") in ACTIVE_STATUSES:
+            if (any(j["status"] in ACTIVE_STATUSES or j.get('camera_state') in ACTIVE_CAMERA_STATES for j in members)
+                    or job.get("scene_state") in ACTIVE_STATUSES):
                 skipped.append({"id": job_id, "reason": "job is still active"})
                 continue
             try:
@@ -2631,12 +2642,58 @@ def api_result(job_id, kind):
 
 
 def _paired_camera_joints(job_id, directory):
+    if get_job(job_id).get('person_batch') == job_id:
+        with np.load(Path(directory) / 'camera/shared-frame.npz', allow_pickle=False) as data:
+            return data['joints']
     path, info = INSPECTION.load(directory, body_reference=job_body_reference(get_job(job_id)))
     return np.fromfile(path, dtype='<f4').reshape(info['frames'], 52, 3)
 
 
 from flowhmr.multishot.web import register_camera_routes
-register_camera_routes(app, get_job, job_dir, _paired_camera_joints)
+from flowhmr.multishot.tasks import CameraTasks, ACTIVE_CAMERA_STATES
+
+
+def _build_paired_camera(job_id, *, check, notify):
+    import torch
+    from contextlib import nullcontext
+    from flowhmr.multishot.runtime import build_camera
+    from flowhmr.utils.runtime_sam_features import build_sam3d_extractor
+    device = ENGINE.device if ENGINE is not None else resolve_inference_device(ARGS.device)
+    xpu_backbone = device if device.type == 'xpu' else None
+    if xpu_backbone is not None:
+        device = torch.device('cpu')
+
+    @contextmanager
+    def load_camera_sam():
+        check()
+        notify('正在加载人物观测模型', 20)
+        with closing(build_sam3d_extractor(device, xpu_backbone_device=xpu_backbone)) as extractor:
+            yield extractor
+
+    if RUNTIME.cuda_variant() == 'cu121':
+        _check_cu121_weights(tuple(map(resolve_model, (*SAM3D_FILES, VGGT))))
+    try:
+        job = get_job(job_id)
+        acquire_sam = ENGINE.scene_sam if ENGINE is not None else load_camera_sam
+        if job.get('person_batch') == job_id and not (Path(job_dir(job_id)) / 'scene/camera/shared-frame.npz').is_file():
+            from flowhmr.utils.runtime_group_scene import build_group_scene
+            with JOBS_LOCK:
+                members = [(copy.deepcopy(m), job_dir(m['id'])) for m in _batch_members_locked(job_id)]
+            build_group_scene(Path(job_dir(job_id)) / 'scene', members, INSPECTION, acquire_sam,
+                              device, check=check, notify=lambda msg: notify(msg, 25), camera_only=True)
+        build_camera(job_dir(job_id), get_job(job_id), INSPECTION,
+                     acquire_sam, device,
+                     check=check, notify=notify,
+                     release_cuda=ENGINE._release_camera_cuda if ENGINE is not None else nullcontext)
+    finally:
+        if ENGINE is not None:
+            ENGINE.release_stage()
+        if device.type == 'cuda':
+            torch.cuda.empty_cache()
+
+
+CAMERA_TASKS = CameraTasks(get_job, job_dir, update_job, JOB_QUEUE.put, _build_paired_camera)
+register_camera_routes(app, get_job, job_dir, _paired_camera_joints, CAMERA_TASKS)
 
 
 # --------------------------------------------------------------------------- main

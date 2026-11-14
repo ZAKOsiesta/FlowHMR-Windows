@@ -428,6 +428,7 @@ DEFAULT_PARAMS = {
     "seed": 0, "cfg_scale": 1.0, "steps": 20, "max_frames": None, "vggt_interval": 0,
     "sam_chunk_size": None, "sam_hand_stride": 1, "start_frame": 0, "end_frame": None,
     "sam_backend": "gpu",
+    "shot_linking": "auto", "visible_arm_fit": True,
     "postprocess": True, "manual_select": True, "auto_frames": True, "static_camera": True,
     "correction_floor_m": None, "correction_preset": "strong",
     "sole_fit": True, "sole_fit_strength": SOLE_FIT_REFERENCE_STRENGTH,
@@ -466,7 +467,12 @@ def parse_params(src, base=None):
     fit_settings = next(settings for settings in (src, base or {}, defaults)
                         if "sole_fit_strength" in settings or "sole_fit" in settings)
     sole_fit_strength = _read_sole_fit_strength(fit_settings)
+    if base is not None:
+        base = {"shot_linking": "off", "visible_arm_fit": False, **base}
     base = {**defaults, **(base or {})}
+    shot_linking = src.get('shot_linking', base['shot_linking'])
+    if shot_linking not in ('auto', 'off'):
+        raise UserMessage('跨镜头连接须为自动或关闭。', 'param_shot_linking')
 
     def number(key, cast, lo, hi):
         raw = src.get(key)
@@ -542,6 +548,8 @@ def parse_params(src, base=None):
         "sam_chunk_size": integer("sam_chunk_size", 1, optional=True),
         "sam_hand_stride": sam_hand_stride,
         "sam_backend": sam_backend,
+        "shot_linking": shot_linking,
+        "visible_arm_fit": _to_bool(src.get('visible_arm_fit'), base['visible_arm_fit']),
         "postprocess": _to_bool(src.get("postprocess"), base["postprocess"]),
         "correction_floor_m": floor,
         "correction_preset": preset,
@@ -698,6 +706,7 @@ def restore_jobs():
             strength = 0.0
         # Older jobs that omit these settings retain the defaults they ran with.
         job["params"] = {**DEFAULT_PARAMS, "static_camera": False, "postprocess": False,
+                         "shot_linking": "off", "visible_arm_fit": False,
                          "correction_preset": "normal", "smoothing_frames": 0.0, **saved_params,
                          "sole_fit": strength > 0, "sole_fit_strength": strength}
         job.setdefault("stages", [])
@@ -1137,8 +1146,11 @@ def run_job(job_id):
         if people is None and JOBS[job_id].get('selection_policy') == 'explicit':
             raise UserMessage('等待人物选择已超时，请重跑任务并重新选择。', 'selection_timeout')
         chosen = people or [default_idx]
+        if len(chosen) > 1:
+            with JOBS_LOCK:
+                JOBS[job_id]['params'].update(shot_linking='off', visible_arm_fit=False)
         _confirm_people(job_id, result, candidates, chosen, automatic=people is None)
-        return chosen[0]
+        return chosen
 
     engine = get_engine(job_id, requested_reference, sam_backend=sam_backend)
     _raise_if_cancelled(job_id)
@@ -1157,6 +1169,8 @@ def run_job(job_id):
         hamer_stride=params["hamer_stride"],
         vggt_frame_interval=params["vggt_interval"],
         static_camera=params.get("static_camera", False),
+        shot_linking=params.get('shot_linking', 'off'),
+        visible_arm_fit=params.get('visible_arm_fit', False),
         sam_chunk_size=params.get("sam_chunk_size", DEFAULT_PARAMS["sam_chunk_size"]),
         sam_hand_stride=params["sam_hand_stride"],
         person_selector=select_person if params.get("manual_select", True) else None,
@@ -1881,6 +1895,7 @@ def api_rerun(job_id):
         scan_range = job_detection_range(params)
         bbox_name = f"{SUB}_bbox.npz"
         detection_changed = (reselect or job_detection_range(src["params"]) != scan_range or
+                             params['shot_linking'] != src['params'].get('shot_linking', 'off') or
                              not cached_detection_matches(os.path.join(src_sub, bbox_name), scan_range))
         if detection_changed:
             skip += (bbox_name,)
@@ -1905,6 +1920,10 @@ def api_rerun(job_id):
                     _link_video(path, os.path.join(dst_sub, name))
                 else:
                     shutil.copy2(path, dst_sub)
+        if (params['shot_linking'] == 'auto' and not detection_changed
+                and os.path.isdir(os.path.join(src_sub, 'linked'))):
+            from flowhmr.multishot.generation import copy_input_cache
+            copy_input_cache(Path(src_sub)/'linked', Path(dst_sub)/'linked')
         person = src.get("selected_person")
         if person is not None and not reselect and os.path.isfile(os.path.join(dst_sub, f"{SUB}_bbox.npz")):
             _copy_person_thumbnail(job_dir(job_id), job_dir(job["id"]), person)

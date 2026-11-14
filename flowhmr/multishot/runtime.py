@@ -143,7 +143,22 @@ def build_camera(directory, job, inspection, acquire_sam, device, *, check=lambd
     # SAM evidence and reviewed gravity, never fitted/gated output cameras.
     archive = folder / 'inputs.npz'
     meta_path = folder / 'inputs.json'
-    if archive.exists() and meta_path.exists():
+    linked = directory / 'input/linked/camera_inputs.npz'
+    linked_meta = linked.with_suffix('.json')
+    if linked.exists() and linked_meta.exists():
+        meta = json.loads(linked_meta.read_text(encoding='utf8'))
+        if meta['motion_sha256'] != motion_hash or meta['sha256'] != digest(linked):
+            raise ValueError('跨镜头观测与当前动作不一致，请重跑任务。')
+        with np.load(linked, allow_pickle=False) as z:
+            if not np.array_equal(z['valid'], valid):
+                raise ValueError('跨镜头观测有效区间不一致。')
+            rt, K, points, hw = (z[k] for k in ('RT', 'K', 'points', 'image_size_hw'))
+            first = int(z['track_start'])
+        shots = meta['shots']
+        gravity = {} if job['params'].get('static_camera') else image_gravity(
+            directory/'input/input_30fps.mp4', rt, K, shots, first, folder, device, check, notify)
+        source = dict(raw_camera='linked_shot_cache', observations_reused=True, generation_calls=0)
+    elif archive.exists() and meta_path.exists():
         meta = json.loads(meta_path.read_text(encoding='utf8'))
         if meta['motion_sha256'] != motion_hash or meta['sha256'] != digest(archive):
             raise ValueError('相机输入档案与冻结人物不一致。')
@@ -175,9 +190,21 @@ def build_camera(directory, job, inspection, acquire_sam, device, *, check=lambd
                                   notify, release_cuda or nullcontext)
         identity = dict(video_sha256=digest(video), boxes=array_digest(boxes), K=array_digest(K),
                         valid=array_digest(valid), first=first, method='upstream_scene_keypoints_body_70_v1')
-        points, reused = _observations(folder, video, boxes, K, valid, first, acquire_sam, identity, check, notify)
+        sidecar = directory / ('input/input_sam3d_feat' + ('_static' if job['params'].get('static_camera') else '') + '.pt.observations.npz')
+        points, reused = None, False
+        try:
+            with np.load(sidecar, allow_pickle=False) as z:
+                if (np.array_equal(z['K'], K) and np.array_equal(z['boxes'], boxes)
+                    and np.array_equal(z['source_frames'], np.arange(first,first+len(joints)))
+                    and z['points'].shape == (len(joints),70,3) and np.isfinite(z['points']).all()):
+                    points, reused = z['points'], True
+        except (OSError, ValueError, KeyError, BadZipFile):
+            pass
+        if points is None:
+            points, reused = _observations(folder, video, boxes, K, valid, first, acquire_sam, identity, check, notify)
         shots = [dict(id=0, start=0, end=len(joints))]
-        gravity = image_gravity(video, rt, K, shots, first, folder, device, check, notify)
+        gravity = {} if job['params'].get('static_camera') else image_gravity(
+            video, rt, K, shots, first, folder, device, check, notify)
         source = dict(raw_camera=mode, observations_reused=reused, observations_identity=identity)
     camera, report = recover_camera(rt, K, joints, points, valid, shots, hw,
         gravity=gravity, track_start=first, check=check, notify=notify)

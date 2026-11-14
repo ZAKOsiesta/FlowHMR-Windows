@@ -805,5 +805,13 @@ export default Object.freeze({
   "progress.correction_sole": "脚掌贴地 {strength}",
   "progress.correction_sole_unchanged": "脚掌贴地 {strength}（未调整）",
   "progress.ahead": "前面还有 {count} 个任务",
-  "progress.starting_soon": "即将开始"
+  "progress.starting_soon": "即将开始",
+  "settings.shot_linking": "跨镜头连接",
+  "settings.shot_linking_auto": "自动连接",
+  "settings.shot_linking_hint": "剪辑视频自动连接一个人物；无切镜或选择多人时沿用原流程。",
+  "settings.arm_fit": "贴合可见手臂",
+  "settings.arm_fit_hint": "仅对连接后的动作生效，保留腿部、根运动和手指旋转。",
+  "progress.shots_linked": "已自动连接 {count} 个镜头",
+  "progress.shots_multiple": "多人加切镜暂不连接，已按原流程分别处理人物。",
+  "server.param_shot_linking": "跨镜头连接须为自动或关闭。"
 });

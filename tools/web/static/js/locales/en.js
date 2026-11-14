@@ -805,5 +805,13 @@ export default Object.freeze({
   "progress.correction_sole": "Sole fitting {strength}",
   "progress.correction_sole_unchanged": "Sole fitting {strength} (no adjustment)",
   "progress.ahead": "Jobs ahead: {count}",
-  "progress.starting_soon": "Starting soon"
+  "progress.starting_soon": "Starting soon",
+  "settings.shot_linking": "Shot linking",
+  "settings.shot_linking_auto": "Automatic",
+  "settings.shot_linking_hint": "Link one person across cuts. Uncut videos and multiple people use the original flow.",
+  "settings.arm_fit": "Fit visible arms",
+  "settings.arm_fit_hint": "Applies only to linked motion; preserves legs, root motion and finger rotations.",
+  "progress.shots_linked": "Automatically linked {count} shots",
+  "progress.shots_multiple": "Multiple people across cuts are processed separately without linking.",
+  "server.param_shot_linking": "Shot linking must be auto or off."
 });

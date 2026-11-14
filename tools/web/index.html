@@ -266,6 +266,19 @@
             <option value="hybrid" data-i18n="sam.backend_hybrid">CPU + GPU（省显存）</option>
           </select>
         </div>
+        <div class="setting-row">
+          <label for="optShotLinking" data-i18n="settings.shot_linking">跨镜头连接</label>
+          <select class="input setting-select" id="optShotLinking">
+            <option value="auto" data-i18n="settings.shot_linking_auto">自动连接</option>
+            <option value="off" data-i18n="common.off">关闭</option>
+          </select>
+        </div>
+        <p class="setting-help" data-i18n="settings.shot_linking_hint">剪辑视频自动连接一个人物；无切镜或选择多人时沿用原流程。</p>
+        <div class="setting-row" id="armFitRow">
+          <label for="optArmFit" data-i18n="settings.arm_fit">贴合可见手臂</label>
+          <button type="button" class="toggle" id="optArmFit" role="switch" aria-label="贴合可见手臂" aria-checked="true" data-i18n-label="settings.arm_fit"><span class="toggle-knob"></span></button>
+        </div>
+        <p class="setting-help" data-i18n="settings.arm_fit_hint">仅对连接后的动作生效，保留腿部、根运动和手指旋转。</p>
         <div class="setting-row" id="samHandStrideRow">
           <div>
             <div class="setting-label" data-i18n="sam.hand_stride">SAM 手部采样</div>
@@ -313,6 +326,7 @@
       <p class="setting-help hidden" id="jobSamBatch"></p>
       <p class="setting-help hidden" id="jobHamer"></p>
       <p class="setting-help hidden" id="jobCorrection"></p>
+        <p class="setting-help hidden" id="jobLinking"></p>
       <p class="error hidden" id="jobError"></p>
       <button type="button" class="btn-primary block rerun-btn hidden" id="btnAlignScene" data-i18n="progress.align">对齐场景</button>
       <button type="button" class="btn-secondary block rerun-btn hidden" id="btnRerun"

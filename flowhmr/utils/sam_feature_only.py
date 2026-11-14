@@ -43,7 +43,7 @@ def make_hand_skeleton(head):
 
 
 @contextmanager
-def unmasked_features(model, hand_skeleton=None):
+def unmasked_features(model, hand_skeleton=None, *, keep_body_pose=False):
     """Keep decoder feedback and tokens; omit outputs not read by FlowHMR."""
     def no_mask(_batch, embeddings):
         _, unmasked = model.prompt_encoder.get_mask_embeddings(None, embeddings.shape[0], embeddings.shape[2:])
@@ -75,6 +75,8 @@ def unmasked_features(model, hand_skeleton=None):
             stack.callback(delattr, model, "_get_mask_prompt")
         model._get_mask_prompt = no_mask
         for decoder in (model.decoder, model.decoder_hand):
+            if keep_body_pose and decoder is model.decoder:
+                continue
             stack.callback(decoder.register_forward_pre_hook(omit_last_pose, with_kwargs=True).remove)
         for head in (model.head_pose, model.head_pose_hand):
             stack.callback(head.register_forward_hook(omit_surface_projection).remove)

@@ -28,6 +28,8 @@ class Parameters(BaseModel):
     max_frames: int | None = Field(default=None, ge=1)
     auto_frames: bool = True
     static_camera: bool = True
+    shot_linking: Literal['auto', 'off'] = 'auto'
+    visible_arm_fit: bool = True
     vggt_interval: int = Field(default=0, ge=0, le=120, description='0: automatic sampling.')
     sam_chunk_size: int | None = Field(default=None, ge=1, description='null: adjust batches to available VRAM and system memory.')
     sam_hand_stride: Literal[1, 2, 4] = Field(default=1, description='SAM hand decoding interval in frames.')

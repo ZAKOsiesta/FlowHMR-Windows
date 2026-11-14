@@ -7,6 +7,7 @@ imageio-ffmpeg>=0.5        # bundled ffmpeg (used when no system ffmpeg is on PA
 
 # person detection + tracking (YOLOX runtime deps; YOLOX itself is installed with --no-deps)
 supervision>=0.25,<0.31    # ByteTrack is removed in 0.31
+scenedetect>=0.6.7,<0.7    # automatic shot linking; imported only when enabled
 loguru
 psutil
 tabulate

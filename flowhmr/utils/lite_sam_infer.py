@@ -29,7 +29,8 @@ def _combine_batches(batches, device):
 @torch.no_grad()
 def extract_tokens(estimator, images, boxes, cameras, *, gpu_preprocess=False,
                    merge_hands=False, hand_boxes_out=None, hand_boxes_only=False,
-                   hand_indices=None, fast_features=False, hand_skeleton=None):
+                   hand_indices=None, fast_features=False, hand_skeleton=None,
+                   observations_out=None):
     """Return CPU float32 ``(frames, 3072)`` tokens in body/left/right order.
 
     ``images`` contains RGB uint8 frames, one selected person per frame.
@@ -75,6 +76,14 @@ def extract_tokens(estimator, images, boxes, cameras, *, gpu_preprocess=False,
 
     def capture_body(_module, _args, output):
         body_tokens.append(output[0].detach() if original_single else output[0][:, 0].detach().clone())
+        if observations_out is not None:
+            import roma
+            pose = output[1][-1]
+            flip = torch.diag(pose['global_rot'].new_tensor([1., -1., -1.]))
+            observations_out.append({
+                'points': (pose['pred_keypoints_3d'] + pose['pred_cam_t'][:, None]).float().cpu().numpy().copy(),
+                'global_orient_camera': (flip @ roma.euler_to_rotmat('xyz', pose['global_rot'])).float().cpu().numpy().copy(),
+            })
 
     def capture_hand(_module, _args, output):
         hand_tokens.append(output[0].detach() if original_single else output[0][:, 0].detach().clone())
@@ -118,7 +127,7 @@ def extract_tokens(estimator, images, boxes, cameras, *, gpu_preprocess=False,
     # the hands. Only our batched path consumes hand boxes directly.
     can_skip = (fast_features and not original_single and not model.training
                 and model.cfg.MODEL.DECODER.get("DO_HAND_DETECT_TOKENS", False))
-    feature_context = unmasked_features(model, hand_skeleton) if can_skip else nullcontext()
+    feature_context = unmasked_features(model, hand_skeleton, keep_body_pose=observations_out is not None) if can_skip else nullcontext()
     state_names = ("_batch_size", "_max_num_person", "_person_valid", "body_batch_idx", "hand_batch_idx")
     state = {name: getattr(model, name) for name in state_names if hasattr(model, name)}
     handles = []

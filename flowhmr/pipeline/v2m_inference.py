@@ -1072,6 +1072,7 @@ class V2MInferenceEngine:
                       hamer_stride: int = 1,
                       vggt_frame_interval: int = 1,
                       static_camera: bool = False,
+                      shot_linking: str = 'off', visible_arm_fit: bool = False,
                       person_selector: Callable = None,
                       progress_callback: Callable[[StageName, int, str], None] = None,
                       cancel_check: Callable[[], None] = None,
@@ -1141,6 +1142,25 @@ class V2MInferenceEngine:
             raise ValueError(f"起始帧超出素材范围（共 {video_meta.total_frames} 帧）。")
         detection_range = requested_frame_range(start_frame, end_frame, max_frames)
         last_requested = detection_range[1]
+        if shot_linking not in ('auto', 'off'):
+            raise ValueError('shot_linking must be auto or off')
+        if shot_linking == 'auto':
+            from flowhmr.multishot.shots import detect_shots
+            stop = min(video_meta.total_frames, last_requested+1 if last_requested is not None else video_meta.total_frames)
+            shots = detect_shots(working_video, start_frame, stop, Path(sub_dir)/'shots.json', cancel_check or (lambda: None))
+            if len(shots) > 1:
+                from flowhmr.multishot.generation import process_linked
+                linked = process_linked(self, working_video, sub_dir, video_name, video_meta, shots,
+                    detection_range=detection_range, person_selector=person_selector, progress=_pcb,
+                    details=_details, check=cancel_check or (lambda: None), seed=seed, cfg_scale=cfg_scale,
+                    static_camera=static_camera, vggt_interval=vggt_frame_interval,
+                    sam_chunk_size=sam_chunk_size, sam_hand_stride=sam_hand_stride,
+                    smoothing_frames=smoothing_frames, hamer=hamer, hamer_stride=hamer_stride,
+                    visible_arm_fit=visible_arm_fit)
+                if linked is not None:
+                    return linked
+            else:
+                _details(shot_linking_report=dict(mode='original', reason='no_cuts', shots=1))
         dependent_paths = tuple(os.path.join(sub_dir, f"{video_name}_{suffix}") for suffix in (
             "vggt_camera.npz", "static_camera.npz", "sam3d_feat.pt", "sam3d_feat_static.pt",
             "sam3d_feat.pt.batch.json", "sam3d_feat_static.pt.batch.json",
@@ -1202,6 +1222,8 @@ class V2MInferenceEngine:
                     _pcb(StageName.DETECTION, 70, "Waiting for person selection")
                     default_pos = offered.index(track_idx)
                     chosen = person_selector(result, candidates, default_pos)
+                    if isinstance(chosen, (list, tuple)):
+                        chosen = chosen[0] if chosen else None
                     if chosen is not None and 0 <= int(chosen) < len(offered):
                         track_idx = offered[int(chosen)]
                 track = result.tracks[track_idx]
@@ -1421,8 +1443,11 @@ class V2MInferenceEngine:
                 hand_boxes = extract_hand_boxes(working_video, **sam_args)
             else:
                 box_chunks = []
+                observation_chunks = []
                 if extract_hand_boxes is not None:
                     sam_args["hand_boxes_out"] = box_chunks
+                if estimator is not None:
+                    sam_args['observations_out'] = observation_chunks
                 tokens = self.sam_extractor.extract_video_tokens(working_video, token_dim=3072, **sam_args)
                 tokens = tokens.contiguous().cpu().to(torch.float32)
                 if tokens.shape != (t_track, 3072):
@@ -1431,6 +1456,11 @@ class V2MInferenceEngine:
                         f"expected ({t_track}, 3072); incomplete features were not cached."
                     )
                 hand_boxes = np.concatenate(box_chunks) if box_chunks else None
+                if observation_chunks:
+                    from flowhmr.multishot.runtime import save_npz
+                    save_npz(Path(feat_pt_path + '.observations.npz'),
+                        **{key: np.concatenate([row[key] for row in observation_chunks]) for key in observation_chunks[0]},
+                        K=camera_result.K, boxes=bbox_track, source_frames=np.arange(s, e+1))
             if hand_boxes is not None:
                 if hand_boxes.shape != (t_track, 2, 4):
                     raise ValueError("SAM hand boxes do not match the selected track")
@@ -1468,6 +1498,22 @@ class V2MInferenceEngine:
         camera_RT = _vggt_opencv_to_yup_rt(
             torch.from_numpy(camera_result.camera_RT).to(torch.float32),
         )
+        return self._generate_video_motion(sam_tokens, camera_RT, sub_dir, video_name,
+            working_video=working_video, start_frame=s, seed=seed, cfg_scale=cfg_scale,
+            smoothing_frames=smoothing_frames, hamer=hamer, hamer_stride=hamer_stride,
+            hand_boxes_path=hand_boxes_path, progress=_pcb, details=_details, cancel_check=cancel_check)
+
+    def _generate_video_motion(self, sam_tokens, camera_RT, sub_dir, video_name, *,
+                               working_video, start_frame, seed, cfg_scale, smoothing_frames,
+                               hamer, hamer_stride, hand_boxes_path, progress, details, cancel_check,
+                               reference_shapes=None):
+        """One upstream generation/postprocessing pass for an observed interval."""
+        from flowhmr.utils.runtime_hamer import refine_fingers
+        T, s = len(sam_tokens), start_frame
+        _pcb, _details = progress, details
+        self._activate_stage(StageName.GENERATION)
+        origin_fbx_path = os.path.join(sub_dir, f"{video_name}_seed{seed}_origin.fbx")
+        final_fbx_path = os.path.join(sub_dir, f"{video_name}_seed{seed}.fbx")
         feature_dict = build_feature_dict(sam_tokens, camera_RT, self.device)
 
         with torch.no_grad():
@@ -1479,6 +1525,16 @@ class V2MInferenceEngine:
                 step_callback=cancel_check,
             )
         del feature_dict
+        if reference_shapes is not None:
+            # Linked intervals describe one actor. Preserve the generated pelvis
+            # path when replacing the decoded proportions with the first interval.
+            shapes = torch.as_tensor(reference_shapes, device=output['shapes'].device,
+                                     dtype=output['shapes'].dtype).reshape_as(output['shapes'])
+            body = self.pipeline.body_model
+            old_root = body.compute_j_shaped(output['shapes'].squeeze(1))[:, :1]
+            new_root = body.compute_j_shaped(shapes.squeeze(1))[:, :1]
+            output['trans'] = output['trans'] + old_root - new_root
+            output['shapes'] = shapes.clone()
         self.release_stage()
         _pcb(StageName.GENERATION, 50, "ODE sampling done, exporting")
 

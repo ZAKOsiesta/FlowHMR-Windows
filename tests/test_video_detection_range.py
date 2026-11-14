@@ -3,6 +3,7 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+import subprocess
 from unittest.mock import Mock, patch
 
 import cv2
@@ -48,6 +49,16 @@ class _Capture:
 
 
 class DetectionRangeTest(unittest.TestCase):
+    def test_transcode_retries_with_bounded_threads_only_after_failure(self):
+        with TemporaryDirectory() as directory:
+            with patch.object(video,'find_ffmpeg',return_value='ffmpeg'), patch.object(video.os,'replace'), patch.object(video.subprocess,'run') as run:
+                run.side_effect=[subprocess.CalledProcessError(1,'ffmpeg',stderr='out of memory'),None]
+                video.VideoProcessor.transcode('source.mp4',directory)
+                first,retry=[call.args[0] for call in run.call_args_list]
+                self.assertNotIn('-threads',first)
+                self.assertEqual(retry.count('-threads'),2)
+                self.assertEqual(retry[retry.index('-c:v')+1],'libx264')
+
     def test_failed_seek_does_not_run_yolox_outside_range(self):
         first, replacement = _Capture(seek=False), _Capture()
         detector = Mock()

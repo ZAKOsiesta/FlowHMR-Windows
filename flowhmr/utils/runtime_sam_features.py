@@ -220,7 +220,7 @@ class Sam3DTokenExtractor:
 
     def extract_frames(self, images, boxes, cameras, *, frame_batch_size=None,
                        use_gpu_preprocess=None, hand_boxes_out=None, hand_boxes_only=False,
-                       merge_hands=True, hand_indices=None) -> Tensor:
+                       merge_hands=True, hand_indices=None, observations_out=None) -> Tensor:
         """Extract body and both hand tokens without full SAM postprocessing.
 
         Defaults use sixteen video frames per batch and GPU crop preprocessing.
@@ -259,6 +259,7 @@ class Sam3DTokenExtractor:
                 gpu_preprocess=gpu_preprocess, merge_hands=merge_hands,
                 hand_boxes_out=hand_boxes_out, hand_boxes_only=hand_boxes_only,
                 hand_indices=local, fast_features=self.fast_features, hand_skeleton=self._hand_skeleton,
+                observations_out=observations_out,
             ))
         return tokens[0] if len(tokens) == 1 else torch.cat(tokens)
 
@@ -330,12 +331,15 @@ class Sam3DTokenExtractor:
         adaptive_batch: bool = False,
         batch_cb: Optional[Callable[[dict], None]] = None,
         hand_boxes_out: Optional[list] = None,
+        observations_out: Optional[list] = None,
         _hand_boxes_only: bool = False,
     ) -> Tensor:
         if inference_type != "full":
             raise ValueError("extract_video_tokens only supports inference_type='full'")
         if use_mask and (_hand_boxes_only or hand_boxes_out is not None):
             raise ValueError("Hand boxes require the batched SAM path")
+        if observations_out is not None and (use_mask or _hand_boxes_only):
+            raise ValueError('SAM observations require unmasked token extraction')
         batch_size = self.frame_batch_size if frame_batch_size is None else frame_batch_size
         if type(batch_size) is not int or batch_size < 1:
             raise ValueError("frame_batch_size must be a positive integer")
@@ -437,6 +441,7 @@ class Sam3DTokenExtractor:
 
                 stop = first + count
                 hand_boxes = [] if hand_boxes_out is not None else None
+                observations = [] if observations_out is not None else None
                 low_memory = planner is not None and planner.low_memory
                 failure = None
                 try:
@@ -457,6 +462,7 @@ class Sam3DTokenExtractor:
                             hand_boxes_out=hand_boxes, hand_boxes_only=_hand_boxes_only,
                             merge_hands=not low_memory,
                             hand_indices=hand_samples(first, count),
+                            observations_out=observations,
                         )
                     tokens = tokens if _hand_boxes_only else tokens[:, :token_dim]
                     if output is None:
@@ -482,6 +488,8 @@ class Sam3DTokenExtractor:
                         batch_cb(planner.info.copy())
                 if hand_boxes is not None:
                     hand_boxes_out.extend(hand_boxes)
+                if observations is not None:
+                    observations_out.extend(observations)
                 del frames[:count]
                 done += count
                 _call_progress(progress_cb, "sam", done, pbar_total, "sam: running")

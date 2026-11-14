@@ -249,6 +249,11 @@ export function initProgress() {
       renderBatch(job.sam_batch, job.status);
       renderHamer(job.hamer_report);
       renderCorrection(job.correction, job.params);
+      const linking = job.shot_linking_report;
+      show('jobLinking', !!linking && linking.reason !== 'no_cuts');
+      setText($('jobLinking'), linking?.mode === 'linked'
+        ? m('progress.shots_linked', { count: linking.shots })
+        : linking?.reason === 'multiple_people' ? m('progress.shots_multiple') : '');
       setText($("workspaceState"), () => job.status === "running" ? `${job.progress}% · ${jobMessage(job)}`
         : job.status === "done" ? `${jobMessage(job)} · FlowHMR` : statusLabel(job.status));
       const error = job.camera_error || serverMessage(job.error_code, job.error_params, job.error);

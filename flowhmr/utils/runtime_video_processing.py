@@ -231,14 +231,19 @@ class VideoProcessor:
         # this file) never sees a half-written mp4.
         tmp_path = osp.join(backup_dir, f"{cache_base}.part.mp4")
 
-        def build_cmd(encoder_name: Optional[str]) -> List[str]:
-            cmd = [ffmpeg_exe, "-y", "-ss", str(start_time), "-i", video_path]
+        def build_cmd(encoder_name: Optional[str], limited=False) -> List[str]:
+            cmd = [ffmpeg_exe, "-y"]
+            if limited:
+                cmd += ['-threads', '2', '-filter_threads', '2']
+            cmd += ["-ss", str(start_time), "-i", video_path]
             if duration is not None:
                 cmd += ["-t", str(duration)]
             if force_fps and encoder_name:
                 # FFmpeg 9 removed -vsync; -fps_mode cfr expresses the same constant
                 # frame-rate behavior for filtered output.
                 cmd += ["-vf", f"fps={int(force_fps)}", "-c:v", encoder_name, "-fps_mode", "cfr", "-pix_fmt", "yuv420p"]
+                if limited:
+                    cmd += ['-threads', '2']
                 if "libx264" in encoder_name or "libx265" in encoder_name:
                     cmd += ["-preset", "fast", "-crf", "22"]
                 elif "nvenc" in encoder_name:
@@ -257,8 +262,11 @@ class VideoProcessor:
             candidate_encoders = [None]
 
         last_error = ""
-        for enc in candidate_encoders:
-            cmd = build_cmd(enc)
+        attempts = [(enc, False) for enc in candidate_encoders]
+        if force_fps:
+            attempts.insert(1, ('libx264', True))
+        for enc, limited in attempts:
+            cmd = build_cmd(enc, limited)
             try:
                 subprocess.run(cmd, check=True, capture_output=True, text=True)
                 os.replace(tmp_path, backup_path)

@@ -809,8 +809,6 @@ export default Object.freeze({
   "settings.shot_linking": "跨鏡頭連接",
   "settings.shot_linking_auto": "自動連接",
   "settings.shot_linking_hint": "剪輯影片自動連接一個人物；無切鏡或選擇多人時沿用原流程。",
-  "settings.arm_fit": "貼合可見手臂",
-  "settings.arm_fit_hint": "僅對連接後的動作生效，保留腿部、根運動和手指旋轉。",
   "progress.shots_linked": "已自動連接 {count} 個鏡頭",
   "progress.shots_multiple": "多人加切鏡暫不連接，已按原流程分別處理人物。",
   "server.param_shot_linking": "跨鏡頭連接須為自動或關閉。"

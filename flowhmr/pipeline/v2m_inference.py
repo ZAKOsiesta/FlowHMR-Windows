@@ -1072,7 +1072,7 @@ class V2MInferenceEngine:
                       hamer_stride: int = 1,
                       vggt_frame_interval: int = 1,
                       static_camera: bool = False,
-                      shot_linking: str = 'off', visible_arm_fit: bool = False,
+                      shot_linking: str = 'off',
                       person_selector: Callable = None,
                       progress_callback: Callable[[StageName, int, str], None] = None,
                       cancel_check: Callable[[], None] = None,
@@ -1155,8 +1155,7 @@ class V2MInferenceEngine:
                     details=_details, check=cancel_check or (lambda: None), seed=seed, cfg_scale=cfg_scale,
                     static_camera=static_camera, vggt_interval=vggt_frame_interval,
                     sam_chunk_size=sam_chunk_size, sam_hand_stride=sam_hand_stride,
-                    smoothing_frames=smoothing_frames, hamer=hamer, hamer_stride=hamer_stride,
-                    visible_arm_fit=visible_arm_fit)
+                    smoothing_frames=smoothing_frames, hamer=hamer, hamer_stride=hamer_stride)
                 if linked is not None:
                     return linked
             else:

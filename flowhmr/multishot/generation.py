@@ -1,7 +1,7 @@
 """Multi-shot orchestration over the existing engine and native postprocessing.
 
-Only this adapter knows about jobs, video/model I/O or output files. Gauge and
-arm fitting remain array operations. All model calls share the app's lifecycle.
+This adapter owns jobs, model lifecycles and output files. Gauge calculations
+remain array operations; short-gap visibility checks use source image evidence.
 """
 import json
 from pathlib import Path
@@ -81,6 +81,32 @@ def _select(result, shots, selector):
     return offered[chosen[0]], len(chosen) > 1
 
 
+def _recover_visibility(engine, video, folder, boxes, valid, shots, check, progress):
+    from flowhmr.pipeline.v2m_inference import StageName
+    from .visibility import redetect_gaps, recover_video_gaps
+    identity=dict(version=2,video=digest(video),boxes=array_digest(boxes),valid=array_digest(valid),shots=shots)
+    proof=folder/'visibility.json';data=folder/'visibility.npz'
+    try:
+        saved=json.loads(proof.read_text(encoding='utf8'))
+        if saved['identity']==identity and saved['sha256']==digest(data):
+            with np.load(data) as z:return z['boxes'],z['valid'],saved['report']
+    except (OSError,ValueError,KeyError):pass
+    before=int((~valid).sum())
+    if before:
+        engine._activate_stage(StageName.DETECTION)
+        try:
+            boxes,valid,detected=redetect_gaps(engine.proc.detector,video,boxes,valid,shots,check,
+                lambda i,n:progress(StageName.DETECTION,65+25*i/n,f'复核人物可见性 · {i}/{n} 个镜头'))
+        finally:engine.release_stage()
+        boxes,valid,tracked=recover_video_gaps(video,boxes,valid,shots,check,
+            lambda i,n:progress(StageName.DETECTION,90+10*i/n,f'核对相邻画面 · {i}/{n} 个镜头'))
+    else:detected,tracked=[],[]
+    report=dict(missing_before=before,missing_after=int((~valid).sum()),detections=detected,image_features=tracked)
+    check();save_npz(data,boxes=boxes,valid=valid)
+    save_json(proof,dict(identity=identity,sha256=digest(data),report=report))
+    return boxes,valid,report
+
+
 def _cameras(engine, video, folder, shots, hw, static, interval, check, progress):
     from flowhmr.pipeline.v2m_inference import StageName
     from flowhmr.utils.runtime_vggt_camera import make_static_camera, extract_vggt_camera_isolated
@@ -149,28 +175,6 @@ def _features(engine, video, folder, boxes, K, first, stop, *, chunk, stride, ch
     return tokens, observations, str(hands_path)
 
 
-def _arm_fit(engine, motion, obs, rotation, shots, hw, check, notify):
-    import torch
-    from flowhmr.core.bodymodels.smpl_skeleton import SMPLSkeleton
-    from .arm_fit import fit_interval
-    from ._arm_projection import recover_stable
-    skeleton = SMPLSkeleton(engine.smpl_model_path).cpu().eval()
-    with torch.no_grad():
-        shape = torch.as_tensor(motion['betas'], dtype=torch.float32).reshape(1,-1)
-        rest = skeleton.compute_j_shaped(shape)[0].numpy()
-        joints = skeleton(dict(poses=torch.from_numpy(motion['poses']),
-            trans=torch.from_numpy(motion['trans']), shapes=shape))['keypoints3d'].numpy()
-    # Projection is internal to this fit; no final camera/GeoCalib is requested.
-    try:
-        RT, _, _ = recover_stable(joints, obs['points'], obs['K'], rotation,
-                                  obs['global_orient_camera'], shots, hw)
-    except (ValueError, RuntimeError) as exc:
-        return motion, dict(skipped='projection_unavailable', reason=str(exc))
-    poses, report = fit_interval({**motion, 'rest':rest, 'parents':np.asarray(skeleton.parents)},
-        joints, obs, dict(RT=RT, K=obs['K'], image_size_hw=hw), shots, check=check, notify=notify)
-    return {**motion, 'poses':poses, 'Rh':poses[:,0]}, report
-
-
 def _join_motion(parts, valid, first):
     from scipy.spatial.transform import Rotation
     from .gauge import yaw, ry, wrap
@@ -212,7 +216,7 @@ def _join_motion(parts, valid, first):
 
 def process_linked(engine, video, sub_dir, name, meta, shots, *, detection_range, person_selector,
                    progress, details, check, seed, cfg_scale, static_camera, vggt_interval,
-                   sam_chunk_size, sam_hand_stride, smoothing_frames, hamer, hamer_stride, visible_arm_fit):
+                   sam_chunk_size, sam_hand_stride, smoothing_frames, hamer, hamer_stride):
     import torch
     from flowhmr.pipeline.v2m_inference import StageName
     from flowhmr.utils.runtime_capabilities import detection_request_key
@@ -236,8 +240,11 @@ def process_linked(engine, video, sub_dir, name, meta, shots, *, detection_range
         return None
     save_json(selection_file,dict(selected=selected))
     boxes, valid, linked = link_tracks(result, shots, selected)
+    boxes, valid, visibility = _recover_visibility(engine,video,folder,boxes,valid,shots,check,progress)
     first, stop = shots[0]['start'], shots[-1]['end']
-    report = dict(mode='linked', shots=len(shots), tracks=linked, intervals=[], placements=[])
+    report = dict(mode='linked', shots=len(shots), tracks=linked, intervals=[], placements=[],
+                  visibility=dict(missing_before=visibility['missing_before'],missing_after=visibility['missing_after'],
+                                  evidence='input/linked/visibility.json'))
     details(shot_linking_report=json.loads(json.dumps(report,allow_nan=False)),
             track_range=[first,stop-1], message=f'已自动连接 {len(shots)} 个镜头')
     save_npz(Path(sub_dir)/f'{name}_bbox.npz', bbox=boxes, start_end=[first,stop-1],
@@ -277,8 +284,6 @@ def process_linked(engine, video, sub_dir, name, meta, shots, *, detection_range
         for left,right in zip(boundaries,boundaries[1:]):
             target = run/f'segment_{left}_{right}'
             target.mkdir(exist_ok=True)
-            segment_shots = clip_shots(shots, first+a+left,first+a+right)
-            local = {key:value[left:right] for key,value in obs.items()}
             rotation=rotation_all[a+left:a+right]
             condition = np.tile(np.eye(4),(right-left,1,1))
             condition[:,:3,:3] = rotation
@@ -293,21 +298,15 @@ def process_linked(engine, video, sub_dir, name, meta, shots, *, detection_range
                 working_video=str(video), start_frame=first+a+left, seed=seed,cfg_scale=cfg_scale,
                 smoothing_frames=smoothing_frames,hamer=hamer,hamer_stride=hamer_stride,
                 hand_boxes_path=str(segment_hands),
-                progress=lambda stage,pct,message: generation_progress(stage,pct*.8 if visible_arm_fit else pct,message),
+                progress=generation_progress,
                 details=details,cancel_check=check,
                 reference_shapes=parts[0][2]['betas'] if parts else None)
             suffix = '' if engine.postprocess is not None or hamer else '_origin'
             with np.load(target/f'{name}_seed{seed}{suffix}.npz',allow_pickle=False) as z:
                 motion = dict(z)
-            arm = dict(enabled=bool(visible_arm_fit))
-            if visible_arm_fit:
-                generation_progress(StageName.GENERATION,80,'正在贴合可见手臂')
-                motion, fit = _arm_fit(engine,motion,local,rotation,segment_shots,hw,check,
-                    lambda step: generation_progress(StageName.GENERATION,80+19*step/620,f'手臂贴合 · {step}/620'))
-                arm.update(fit)
             parts.append((a+left,a+right,motion,left in breaks))
             report['intervals'].append(dict(source_frames=[first+a+left,first+a+right],
-                continuity_guard=[{**g,'source_frame':first+a+g['frame']} for g in guard],arm_fit=arm))
+                continuity_guard=[{**g,'source_frame':first+a+g['frame']} for g in guard],arm_fit=dict(enabled=False,removed=True)))
             generated+=right-left
             save_json(folder/'report.json',report)
     motion, report['placements'] = _join_motion(parts,valid,first)

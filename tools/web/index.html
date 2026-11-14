@@ -332,6 +332,7 @@
             <button type="button" data-view="right"><span data-i18n="view.right">右视</span> <kbd data-i18n="view.key_three">小键盘 3</kbd></button>
             <button type="button" data-view="top"><span data-i18n="view.top">顶视</span> <kbd data-i18n="view.key_seven">小键盘 7</kbd></button>
             <button type="button" id="toggleProjection"><span data-i18n="view.projection">透视 / 正交</span> <kbd data-i18n="view.key_five">小键盘 5</kbd></button>
+            <button type="button" id="sourceCameraView" aria-pressed="false" disabled data-i18n="view.source_camera">原片机位</button>
           </div>
         </details>
         <details class="editor-menu ground-menu hidden" id="groundMenu">
@@ -642,9 +643,14 @@
         <option value="maya_adv">Maya AdvancedSkeleton FBX</option>
         <option value="vmd">MMD VMD</option>
         <option value="vrma">VRM Animation (.vrma)</option>
+        <option value="npz">NPZ</option>
       </select>
     </label>
     <p class="setting-help export-format-hint" id="motionExportHint"></p>
+    <div id="pairedCameraOptions">
+      <label class="fbx-export-skin"><input type="checkbox" id="includeCamera"> <span data-i18n="export.include_camera">同时导出摄像机</span></label>
+      <p class="setting-help" id="pairedCameraHint"></p>
+    </div>
     <div id="vmdOptions" class="character-file hidden">
       <select class="input" id="vmdTarget" aria-label="PMX 模型" data-i18n-label="character.file">
         <option value="target" id="vmdTargetCharacter"></option>

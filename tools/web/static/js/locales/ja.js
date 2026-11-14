@@ -1,4 +1,10 @@
 export default Object.freeze({
+  "view.source_camera_pmx_only": "元映像のカメラは元の人体と PMX キャラクターに対応しています",
+  "view.source_camera": "元映像のカメラ",
+  "view.source_camera_gap": "この区間に有効なカメラはありません",
+  "export.include_camera": "カメラも出力",
+  "export.camera_ready": "モーションとカメラをまとめてダウンロード",
+  "export.camera_missing": "このタスクにはまだ対応するカメラがありません",
   "camera.amd_igpu_hint": "AMD 内蔵 GPU では固定カメラを推奨します。移動カメラの推定には CPU を使い、他の推論には内蔵 GPU を使います。",
   "job.detection_frames": "人物検出 · {current}/{total} フレーム",
   "server.detection_empty_range": "選択した区間で人物が見つかりません。開始または終了フレームを調整してください。",

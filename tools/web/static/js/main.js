@@ -362,7 +362,7 @@ async function poll() {
     $("menuNpz").disabled = false;
     show("dlNpz", true);
     try {
-      const meta = await viewer.load(id, job.scene);
+      const meta = await viewer.load(id, job.scene, job.camera_state);
       if (meta && id === currentJob) void loadTracks(id, job.scene);
     } catch (e) {
       if (id === currentJob) {

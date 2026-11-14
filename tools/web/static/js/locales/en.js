@@ -1,4 +1,10 @@
 export default Object.freeze({
+  "view.source_camera_pmx_only": "Source camera currently supports the source body and PMX characters",
+  "view.source_camera": "Source camera",
+  "view.source_camera_gap": "No camera in this interval",
+  "export.include_camera": "Include camera",
+  "export.camera_ready": "Download motion and camera together",
+  "export.camera_missing": "This task has no paired camera yet",
   "camera.amd_igpu_hint": "Fixed camera is recommended for AMD integrated graphics. Moving camera estimation runs on the CPU; other inference still uses the GPU.",
   "job.detection_frames": "Person detection · {current}/{total} frames",
   "server.detection_empty_range": "No person was detected in the selected range. Adjust the start or end frame.",

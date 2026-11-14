@@ -1,4 +1,10 @@
 export default Object.freeze({
+  "view.source_camera_pmx_only": "原片机位目前支持原始人体和 PMX 角色",
+  "view.source_camera": "原片机位",
+  "view.source_camera_gap": "此段无有效机位",
+  "export.include_camera": "同时导出摄像机",
+  "export.camera_ready": "人物与摄像机打包下载",
+  "export.camera_missing": "当前任务尚无配套摄像机",
   "camera.amd_igpu_hint": "AMD 核显建议使用固定机位。选运动相机时，由 CPU 估计相机，其他推理仍用核显。",
   "job.detection_frames": "人物检测 · {current}/{total} 帧",
   "server.detection_empty_range": "处理区间里没有检测到人物。请调整起止帧。",

@@ -1,4 +1,10 @@
 export default Object.freeze({
+  "view.source_camera_pmx_only": "La caméra source prend en charge le corps source et les personnages PMX",
+  "view.source_camera": "Caméra source",
+  "view.source_camera_gap": "Aucune caméra dans cet intervalle",
+  "export.include_camera": "Inclure la caméra",
+  "export.camera_ready": "Télécharger le mouvement et la caméra ensemble",
+  "export.camera_missing": "Cette tâche ne dispose pas encore de caméra associée",
   "camera.amd_igpu_hint": "Une caméra fixe est recommandée avec un GPU intégré AMD. En mode caméra mobile, le processeur estime la caméra et le GPU assure le reste de l’inférence.",
   "job.detection_frames": "Détection de personnes · {current}/{total} images",
   "server.detection_empty_range": "Aucune personne détectée dans la plage choisie. Ajustez l’image de début ou de fin.",

@@ -78,6 +78,7 @@ export async function getCharacterMotion(id, signal) {
     throw appError("server.pmx_motion");
   }
   return { ...meta, rest: data.subarray(0, xyz), joints: data.subarray(xyz, jointsEnd),
+    validFrames: meta.validRanges ? Array.from({ length: meta.frames }, (_, f) => meta.validRanges.some(([a, b]) => f >= a && f < b)) : null,
     quaternions: data.subarray(jointsEnd, rotationsEnd), contacts: data.subarray(rotationsEnd, contactEnd),
     soles: meta.hasSoles ? data.subarray(contactEnd) : null };
 }
@@ -111,6 +112,15 @@ export const selectPeople = (id, people) => postJson(`/api/jobs/${id}/select`,
 export const rerunJob = (id, params) => postJson(`/api/jobs/${id}/rerun`, params).then((res) => res.job_id);
 export const cancelJob = (id) => postJson(`/api/jobs/${id}/cancel`);
 export const prepareScene = (id) => postJson(`/api/jobs/${id}/scene`);
+export const getCamera = (id, signal) => json(`/api/jobs/${id}/camera`, { signal });
+export const prepareCamera = (id) => postJson(`/api/jobs/${id}/camera/prepare`);
+export const exportCamera = (id, format, transform, signal) => request(`/api/jobs/${id}/camera/export`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, signal,
+  body: JSON.stringify({ format, transform: transform ?? { scale: 1, translation: [0, 0, 0] } }),
+}).then((response) => response.arrayBuffer());
+export const getMotionDownload = (url, signal) => request(url, { signal }).then(async (response) => ({
+  bytes: new Uint8Array(await response.arrayBuffer()), type: response.headers.get('Content-Type'),
+}));
 
 export const videoUrl = (id, converted) => `/api/jobs/${id}/video?source=${converted ? "preview" : "original"}`;
 export const npzUrl = (id) => `/api/jobs/${id}/npz`;

@@ -1,6 +1,7 @@
 import { $, el, personColor, show } from "./utils.js";
 import { appError, message as m, setText } from "./i18n.js";
 import * as api from "./api.js";
+import { unzipSync, zipSync } from '../vendor/three/fbx/libs/fflate.module.js';
 
 const FORMAT_STORAGE = "flowhmr-export-format";
 const SKIN_STORAGE = "flowhmr-fbx-with-skin";
@@ -15,6 +16,7 @@ export function initMotionExport(getBodyVariant, viewer) {
   const clearTemplate = $("fbxTemplateClear"), templateHint = $("fbxTemplateHint");
   const vmdTarget = $("vmdTarget"), characterOption = $("vmdTargetCharacter");
   const chooseCharacter = $("vmdChooseCharacter");
+  const includeCamera = $('includeCamera');
   const formats = [...format.options];
   let preferred = localStorage.getItem(FORMAT_STORAGE) || "flowhmr";
   if (preferred === "mixamo_iclone") preferred = "mixamo";
@@ -62,6 +64,11 @@ export function initMotionExport(getBodyVariant, viewer) {
     else template.removeAttribute("aria-describedby");
     show("vmdOptions", profile === "vmd");
     const roles = targets();
+    const cameraSupported = ['vmd', 'flowhmr', 'npz'].includes(profile);
+    show('pairedCameraOptions', cameraSupported);
+    includeCamera.disabled = !!pending || result?.cameraState !== 'ready';
+    if (!cameraSupported || result?.cameraState !== 'ready') includeCamera.checked = false;
+    setText($('pairedCameraHint'), m(result?.cameraState === 'ready' ? 'export.camera_ready' : 'export.camera_missing'));
     characterOption.disabled = characterOption.hidden = !roles.length;
     if (roles.length) setText(characterOption, roles.length === 1
       ? m("export.vmd_character", { name: roles[0].asset.name }) : m("export.vmd_characters"));
@@ -122,6 +129,7 @@ export function initMotionExport(getBodyVariant, viewer) {
   };
   menu.onclick = () => button.click();
   peopleField.addEventListener("change", sync);
+  includeCamera.addEventListener('change', sync);
   vmdTarget.addEventListener("change", sync);
   chooseCharacter.onclick = () => {
     dialog.close("character");
@@ -162,6 +170,48 @@ export function initMotionExport(getBodyVariant, viewer) {
     preferred = profile;
     localStorage.setItem(FORMAT_STORAGE, profile);
     const targetVmd = profile === "vmd" && vmdTarget.value === "target";
+    if (includeCamera.checked) {
+      const operation = pending = new AbortController();
+      showError();
+      // Preserve the user's selection while marking the operation busy.
+      sync();
+      try {
+        await api.prepareCamera(id);
+        let files, transform = { scale: 1, translation: [0, 0, 0] };
+        if (targetVmd) {
+          const target = await makePmxVmd(viewer, people, result.filename, operation.signal);
+          files = target.files;
+          transform = target.cameraTransform;
+        } else {
+          const url = profile === 'npz' ? api.npzUrl(id) : profile === 'vmd' ? api.motionUrl(id, 'vmd', people)
+            : api.fbxUrl(id, skin.checked, getBodyVariant(), people, pose.value, 'flowhmr');
+          const motion = await api.getMotionDownload(url, operation.signal);
+          files = motion.type?.startsWith('application/zip')
+            ? Object.entries(unzipSync(motion.bytes)).map(([name, bytes]) => ({ name, bytes }))
+            : [{ name: `motion.${profile === 'flowhmr' ? 'fbx' : profile}`, bytes: motion.bytes }];
+        }
+        const cameraZip = new Uint8Array(await api.exportCamera(id, profile === 'flowhmr' ? 'fbx' : profile, transform, operation.signal));
+        files.push(...Object.entries(unzipSync(cameraZip)).map(([name, bytes]) => ({ name, bytes })));
+        if (pending !== operation || result?.id !== id || !dialog.open) return;
+        const stem = safeStem(result.filename);
+        const entries = Object.create(null);
+        for (const { name, bytes } of files) {
+          if (!name || /[/\\\x00-\x1f]/.test(name) || Object.hasOwn(entries, name)) throw new Error('Invalid or duplicate paired export filename');
+          entries[name] = bytes;
+        }
+        downloadBlob(new Blob([zipSync(entries, { level: 1 })], { type: 'application/zip' }), `${stem}_motion_camera.zip`);
+      } catch (cause) {
+        if (!operation.signal.aborted && dialog.open) showError(cause);
+      } finally {
+        if (pending === operation) { pending = null; sync(); }
+      }
+      return;
+    }
+    if (profile === 'npz') {
+      dialog.close('export');
+      download(api.npzUrl(id));
+      return;
+    }
     if (profile === "vrma" || (profile === "vmd" && !targetVmd)) {
       dialog.close("export");
       download(api.motionUrl(id, profile, people));
@@ -201,8 +251,9 @@ export function initMotionExport(getBodyVariant, viewer) {
 
   return {
     setResult(id, job) {
-      result = { id, filename: job.filename };
-      const availableByFormat = { vmd: !!job.has_vmd, vrma: !!job.has_vrma };
+      result = { id, filename: job.filename, cameraState: job.camera_state ?? 'none' };
+      includeCamera.checked = false;
+      const availableByFormat = { vmd: !!job.has_vmd, vrma: !!job.has_vrma, npz: !!job.has_vmd };
       for (const option of formats) option.disabled = !(availableByFormat[option.value] ?? job.has_fbx);
       const available = formats.filter((option) => !option.disabled);
       format.value = (available.find((option) => option.value === preferred) ?? available[0])?.value ?? "";
@@ -229,18 +280,21 @@ async function makePmxVmd(viewer, people, filename, signal) {
   const [{ createPmxRetarget }, { encodePmxVmd, packPmxVmdZip }] = await Promise.all([
     import("./pmx-retarget.js"), import("./pmx-vmd.js"),
   ]);
-  const stem = (filename || "FlowHMR").replace(/\.[^.]+$/, "").replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").slice(0, 100);
+  const stem = safeStem(filename);
   const files = [];
+  let cameraTransform = null;
   for (const actor of actors) {
     signal.throwIfAborted();
     const { asset } = actor;
     const clone = asset.clone();
     try {
       const solver = createPmxRetarget(clone, asset.rest, actor.motion, { poseOffsets: actor.poseOffsets });
+      cameraTransform ??= solver.cameraTransform;
       const bytes = await encodePmxVmd({
         solver, rest: asset.rest, modelName: asset.name,
         frameCount: actor.motion.frames, fps: actor.fps, startFrame: actor.start, sceneEndFrame: actor.sceneEnd,
         placement: { yaw: actor.yaw, offset: actor.offset }, signal,
+        validFrames: actor.motion.validFrames,
       });
       const tag = actor.person == null ? "" : `_person${actor.person}`;
       files.push({ name: `${stem}${tag}_pmx.vmd`, bytes });
@@ -248,7 +302,11 @@ async function makePmxVmd(viewer, people, filename, signal) {
       asset.releaseClone(clone);
     }
   }
-  return files.length === 1
+  return { files, cameraTransform, ...(files.length === 1
     ? { blob: new Blob([files[0].bytes], { type: "application/octet-stream" }), filename: files[0].name }
-    : { blob: packPmxVmdZip(files), filename: `${stem}_pmx_vmd.zip` };
+    : { blob: packPmxVmdZip(files), filename: `${stem}_pmx_vmd.zip` }) };
+}
+
+function safeStem(filename) {
+  return (filename || 'FlowHMR').replace(/\.[^.]+$/, '').replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').slice(0, 100);
 }

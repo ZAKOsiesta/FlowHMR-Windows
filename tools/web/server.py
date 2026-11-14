@@ -1983,6 +1983,7 @@ def api_job(job_id):
         job["has_vmd"] = os.path.isfile(motion)
         job["has_vrma"] = job["has_vmd"]
         job["has_fbx"] = job["has_vmd"] and fbx_export_available(job_body_reference(job))
+        job["camera_state"] = 'ready' if os.path.isfile(os.path.join(os.path.dirname(motion), 'camera', 'camera.npz')) else job.get('camera_state', 'none')
     canonical = os.path.join(job_dir(job_id), SUB, f"{SUB}_30fps.mp4")
     job["has_preview_video"] = os.path.isfile(canonical)
     if not job.get("source_frames") and job["status"] in ("done", "cancelled", "failed"):
@@ -2374,6 +2375,10 @@ def api_fbx(job_id):
         name = f"{stem}_{profile}_{group}_{suffix}.fbx"
     else:
         name = f"{export_stem(job)}_{profile}_{suffix}.fbx"
+    from flowhmr.multishot.exports import motion_report_bundle
+    bundled = motion_report_bundle(path, source, name)
+    if bundled is not None:
+        return send_file(bundled, mimetype='application/zip', as_attachment=True, download_name=name + '.zip')
     return send_file(path, mimetype="application/octet-stream", as_attachment=True, download_name=name, conditional=True)
 
 
@@ -2413,6 +2418,11 @@ def send_humanoid_motion(path, job, available, chosen, signature, format_name, e
         group = export_selection_label(available, chosen, signature)
         name = f"{stem}_{format_name}_{group}.{extension}"
     mime = "application/zip" if extension == "zip" else "application/octet-stream"
+    if format_name == 'vrma' and chosen is None:
+        from flowhmr.multishot.exports import motion_report_bundle
+        bundled = motion_report_bundle(path, os.path.join(os.path.dirname(os.path.dirname(path)), 'motion.npz'), name)
+        if bundled is not None:
+            return send_file(bundled, mimetype='application/zip', as_attachment=True, download_name=name + '.zip')
     return send_file(path, mimetype=mime, as_attachment=True, download_name=name, conditional=True)
 
 
@@ -2618,6 +2628,15 @@ def api_result(job_id, kind):
     name = f"{export_stem(job)}_flowhmr.{kind}" if as_attachment else None
     return send_file(path, mimetype=mime, as_attachment=as_attachment,
                      download_name=name, conditional=True)
+
+
+def _paired_camera_joints(job_id, directory):
+    path, info = INSPECTION.load(directory, body_reference=job_body_reference(get_job(job_id)))
+    return np.fromfile(path, dtype='<f4').reshape(info['frames'], 52, 3)
+
+
+from flowhmr.multishot.web import register_camera_routes
+register_camera_routes(app, get_job, job_dir, _paired_camera_joints)
 
 
 # --------------------------------------------------------------------------- main

@@ -1,4 +1,10 @@
 export default Object.freeze({
+  "view.source_camera_pmx_only": "原片機位目前支援原始人體與 PMX 角色",
+  "view.source_camera": "原片機位",
+  "view.source_camera_gap": "此段無有效機位",
+  "export.include_camera": "同時匯出攝影機",
+  "export.camera_ready": "人物與攝影機打包下載",
+  "export.camera_missing": "目前任務尚無配套攝影機",
   "camera.amd_igpu_hint": "AMD 內顯建議使用固定機位。選擇運動相機時由 CPU 估計相機，其餘推論仍使用內顯。",
   "job.detection_frames": "人物偵測 · {current}/{total} 幀",
   "server.detection_empty_range": "處理區間內未偵測到人物。請調整起訖幀。",

@@ -51,6 +51,7 @@ def pmx_motion(directory, reference_path, joint_stream, inspection, floor):
         poses = np.asarray(motion["poses"], dtype=np.float32).reshape(frames, joint_count, 3)
         betas = np.asarray(motion["betas"], dtype=np.float32).reshape(-1)
         contacts = motion.get("foot_contacts")
+        valid_frames = motion.get('valid_frames')
     if not np.isfinite(poses).all() or not np.isfinite(betas).all():
         raise ValueError("Invalid source motion values")
 
@@ -83,7 +84,12 @@ def pmx_motion(directory, reference_path, joint_stream, inspection, floor):
         output[rotation_end:contact_end] = np.clip(contacts, 0, 1).reshape(-1)
     if soles is not None:
         output[contact_end:] = soles.reshape(-1)
+    extra = {}
+    if valid_frames is not None:
+        from flowhmr.multishot.timeline import validity, intervals
+        extra['validRanges'] = intervals(validity(valid_frames, frames))
     return output.tobytes(), {
         "frames": frames, "parents": parents, "floor": float(floor), "restFloor": float(rest_vertices[:, 1].min()),
         "hasSoles": soles is not None,
+        **extra,
     }

@@ -1,4 +1,10 @@
 export default Object.freeze({
+  "view.source_camera_pmx_only": "Исходная камера поддерживает исходное тело и персонажей PMX",
+  "view.source_camera": "Исходная камера",
+  "view.source_camera_gap": "Нет камеры в этом интервале",
+  "export.include_camera": "Включить камеру",
+  "export.camera_ready": "Скачать движение вместе с камерой",
+  "export.camera_missing": "Для этой задачи ещё нет связанной камеры",
   "camera.amd_igpu_hint": "Для встроенной графики AMD рекомендуется неподвижная камера. Движение камеры оценивается на ЦП, остальные этапы выполняются на встроенном ГП.",
   "job.detection_frames": "Поиск людей · {current}/{total} кадров",
   "server.detection_empty_range": "В выбранном диапазоне люди не найдены. Измените начальный или конечный кадр.",

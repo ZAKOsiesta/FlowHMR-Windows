@@ -605,8 +605,13 @@ export function createPmxRetarget(mesh, rest, motion, { poseOffsets = null } = {
   const sourceStandingY = Number.isFinite(floor) ? floor + sourceHipHeight : joints[1];
   // Keep each actor's entry point on the shared stage. Scale height changes
   // from the standing pelvis so a clip can start crouching or in midair.
-  const rootAnchor = new Vector3(joints[0], sourceStandingY, joints[2]);
+  const entry = Math.max(0, motion.validFrames?.findIndex(Boolean) ?? 0) * JOINTS * 3;
+  const rootAnchor = new Vector3(joints[entry], sourceStandingY, joints[entry + 2]);
   const hipHeightOffset = targetHipHeight - sourceHipHeight;
+  // Exact affine root mapping, including hip height. Expressing it as a
+  // scale about a fixed point is singular at k=1 when hip heights differ.
+  const cameraTranslation = rootAnchor.clone().multiplyScalar(1 - rootMotionScale);
+  cameraTranslation.y += hipHeightOffset;
   const soleGrounding = support ? soleGroundingProfile(motion, soleContacts, legs) : null;
   const controllerLeg = new Map();
   for (const control of nativeIk.moving.values()) {
@@ -1315,6 +1320,7 @@ export function createPmxRetarget(mesh, rest, motion, { poseOffsets = null } = {
     return mirrored && shoulderAngles(to, mirrored, -1).map((angle) => Number(angle.toFixed(2)));
   }
   return { apply, vmd, setPoseOffsets, nativeIkAvailable: nativeIk.available, mirrorRotation, matched: map.filter((i) => i >= 0).length,
-    sourceToTarget: Array.from(map), skippedGrants, support, rootMotionScale };
+    sourceToTarget: Array.from(map), skippedGrants, support, rootMotionScale,
+    cameraTransform: { scale: rootMotionScale, translation: cameraTranslation.toArray() } };
 }
 

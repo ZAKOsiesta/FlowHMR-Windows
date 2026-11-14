@@ -1,4 +1,10 @@
 export default Object.freeze({
+  "view.source_camera_pmx_only": "원본 카메라는 현재 원본 인체와 PMX 캐릭터를 지원합니다",
+  "view.source_camera": "원본 카메라",
+  "view.source_camera_gap": "이 구간에는 유효한 카메라가 없습니다",
+  "export.include_camera": "카메라 포함",
+  "export.camera_ready": "모션과 카메라 함께 다운로드",
+  "export.camera_missing": "이 작업에는 아직 연결된 카메라가 없습니다",
   "camera.amd_igpu_hint": "AMD 내장 그래픽에는 고정 카메라를 권장합니다. 이동 카메라 추정은 CPU가 담당하고 나머지 추론에는 내장 GPU를 사용합니다.",
   "job.detection_frames": "인물 감지 · {current}/{total} 프레임",
   "server.detection_empty_range": "선택 구간에서 인물을 감지하지 못했습니다. 시작 또는 끝 프레임을 조정하세요.",

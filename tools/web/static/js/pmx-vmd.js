@@ -129,7 +129,7 @@ function validateBinding(vmd, rest) {
   return { tracks, iks, hasRoot: used.has(vmd.rootBoneIndex) };
 }
 
-function timeline(frameCount, fps, startFrame, sceneEndFrame) {
+function timeline(frameCount, fps, startFrame, sceneEndFrame, validFrames) {
   const valid = (frame) => Number.isSafeInteger(frame) && frame >= 0 && frame <= UINT32_MAX;
   if (fps !== 30 || !valid(startFrame) || !Number.isSafeInteger(frameCount) || frameCount < 1) {
     fail("timeline", "PMX VMD requires a nonempty motion on a 30 FPS timeline.");
@@ -147,6 +147,18 @@ function timeline(frameCount, fps, startFrame, sceneEndFrame) {
   if (sceneEndFrame != null && end < sceneEndFrame) {
     display.set(end, true);
     display.set(end + 1, false);
+  }
+  if (validFrames != null) {
+    if (validFrames.length !== frameCount || !validFrames.some(Boolean)) fail('timeline', 'Invalid motion validity mask.');
+    display.set(startFrame, !!validFrames[0]);
+    for (let i = 1; i < frameCount; i++) {
+      if (!!validFrames[i] !== !!validFrames[i - 1]) {
+        display.set(startFrame + i - 1, !!validFrames[i - 1]);
+        display.set(startFrame + i, !!validFrames[i]);
+      }
+    }
+    if (sceneEndFrame != null && end < sceneEndFrame) display.set(end, !!validFrames.at(-1));
+    return new Map([...display].sort(([a], [b]) => a - b));
   }
   // Adjacent boundary keys avoid one long transition in importers that interpolate display.
   return display;
@@ -175,10 +187,10 @@ function abortIfNeeded(signal) {
 // zero based, with an inclusive end. The solver composes the optional scene placement.
 export async function encodePmxVmd({
   solver, rest, modelName = "", frameCount, fps = 30, startFrame = 0,
-  sceneEndFrame = null, placement = null, onProgress, signal,
+  sceneEndFrame = null, placement = null, validFrames = null, onProgress, signal,
 }) {
   abortIfNeeded(signal);
-  const display = timeline(frameCount, fps, startFrame, sceneEndFrame);
+  const display = timeline(frameCount, fps, startFrame, sceneEndFrame, validFrames);
   const vmd = solver?.vmd;
   const { tracks, iks, hasRoot } = validateBinding(vmd, rest);
   const transform = actorPlacement(placement, hasRoot);

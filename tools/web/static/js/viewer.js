@@ -7,6 +7,7 @@ import { appError, message as m, setAttr, setText, t } from "./i18n.js";
 import * as api from "./api.js";
 import { initPreviewCharacter } from "./preview-character.js";
 import { initPoseEditor } from "./pose-editor.js";
+import { applySourceCamera, sourceViewport } from './paired-camera.js';
 
 const BODY_STORAGE = "flowhmr-body-variant";
 const MOUSE_MODE_STORAGE = "flowhmr-mouse-mode";
@@ -84,6 +85,8 @@ export function initViewer(preview) {
 
   const perspective = new THREE.PerspectiveCamera(40, 1, 0.05, 200);
   const orthographic = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.05, 200);
+  const recoveredCamera = new THREE.PerspectiveCamera();
+  let sourceView = false, cameraData = null, orbitCamera = perspective, sourceFrameValid = false;
   const defaultTarget = new THREE.Vector3(0, 0.9, 0);
   const frontOffset = new THREE.Vector3(0, -0.43, 4.8);
   const frontDirection = frontOffset.clone().normalize();
@@ -104,6 +107,7 @@ export function initViewer(preview) {
   const zoom = { target: camera.position.distanceTo(controls.target) };
   renderer.domElement.addEventListener("wheel", (e) => {
     e.preventDefault();
+    if (sourceView) return;
     const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? container.clientHeight : 1;
     const px = Math.max(-120, Math.min(120, e.deltaY * unit));  // cap per event (~1 notch)
     zoom.target = THREE.MathUtils.clamp(zoom.target * Math.pow(1.0015, px),
@@ -122,6 +126,7 @@ export function initViewer(preview) {
     return true;
   }
   window.__viewer = { get camera() { return camera; }, controls, zoom,
+    get scene() { return scene; }, get renderer() { return renderer; },
     get renderCount() { return renderer.info.render.frame; },
     get groundHeight() { return floor.position.y; },
     get skeleton() { return actors[0]?.skeleton?.group; }, get actors() { return actors; } };  // for automated tests
@@ -195,7 +200,7 @@ export function initViewer(preview) {
   skeletonToggle.checked = showSkeletonOverlay;
   coneToggle.checked = localStorage.getItem("flowhmr-bone-cones") === "on";
   const state = {
-    jobId: null, meta: null, scene: null, bodyVariant: "neutral", frame: 0, playing: false, speed: 1, lastT: 0, acc: 0,
+    jobId: null, meta: null, scene: null, cameraState: 'none', bodyVariant: "neutral", frame: 0, playing: false, speed: 1, lastT: 0, acc: 0,
     prevRoot: new THREE.Vector3(),
   };
   const poseMenu = $("characterPoseMenu");
@@ -210,6 +215,8 @@ export function initViewer(preview) {
     poseEditor.setActors(actors, character.focused?.id);
     syncSkeletonDisplay();
     if (state.meta && state.frame >= 0) updateFrameRoot(state.frame);
+    updateSourceAvailability();
+    if (sourceView) updateSourceCamera();
     labelBody();
   }, (error) => setText($("viewportObject"), error));
 
@@ -268,6 +275,13 @@ export function initViewer(preview) {
   updateGizmo();
 
   function setProjection(next) {
+    if (sourceView) {
+      sourceView = false;
+      camera = orbitCamera;
+      controls.object = camera;
+      controls.enabled = true;
+      $('sourceCameraView').setAttribute('aria-pressed', 'false');
+    }
     if (next !== camera) {
       next.position.copy(camera.position);
       next.quaternion.copy(camera.quaternion);
@@ -301,6 +315,43 @@ export function initViewer(preview) {
     setProjection(camera === perspective ? orthographic : perspective);
   }
   $("toggleProjection").onclick = toggleProjection;
+  function updateSourceAvailability() {
+    const unsupported = actors.some((actor) => actor.character && actor.character.asset.kind !== 'pmx');
+    $('sourceCameraView').disabled = state.cameraState !== 'ready' || unsupported;
+    setAttr($('sourceCameraView'), 'title', unsupported ? m('view.source_camera_pmx_only') : '');
+    if (unsupported && sourceView) setProjection(orbitCamera);
+  }
+  function cameraTransform(people = []) {
+    const selected = new Set(people.map(String));
+    const actor = actors.find((a) => !state.scene || !selected.size || selected.has(String(a.number)));
+    return actor?.character?.rig.cameraTransform ?? { scale: 1, translation: [0, 0, 0] };
+  }
+  function updateSourceCamera() {
+    if (!sourceView || !cameraData || !state.meta) return;
+    sourceFrameValid = applySourceCamera(recoveredCamera, cameraData,
+      sourceStart(state.meta) + state.frame - cameraData.track_start, cameraTransform());
+    setText($('viewportName'), m(sourceFrameValid ? 'view.source_camera' : 'view.source_camera_gap'));
+    invalidate();
+  }
+  $('sourceCameraView').onclick = async () => {
+    if (sourceView) { setProjection(orbitCamera); return; }
+    const id = state.jobId;
+    try {
+      if (!cameraData) {
+        await api.prepareCamera(id);
+        const data = await api.getCamera(id);
+        if (id !== state.jobId) return;
+        cameraData = data;
+      }
+      clearOrbitInertia();
+      orbitCamera = camera;
+      sourceView = true;
+      controls.enabled = false;
+      camera = recoveredCamera;
+      $('sourceCameraView').setAttribute('aria-pressed', 'true');
+      updateSourceCamera();
+    } catch (error) { setText($('viewportName'), error); }
+  };
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.onclick = () => setView(button.dataset.view);
   });
@@ -375,7 +426,7 @@ export function initViewer(preview) {
   function syncGround() {
     groundInput.disabled = groundAuto.checked;
     if (groundAuto.checked) {
-      const height = estimatedGround?.height_m ?? 0;
+      const height = (estimatedGround?.height_m ?? 0) - (state.meta?.camera_state === 'ready' ? .015 : 0);
       setGround(height);
       groundInput.value = height.toFixed(3);
       const source = ["correction", "shared", "contacts", "soles"].includes(estimatedGround?.source)
@@ -583,7 +634,7 @@ export function initViewer(preview) {
   function drawActorFrame(actor, globalFrame) {
     const { body, group, meta, verts } = actor;
     const f = actorFrame(actor, globalFrame);
-    group.visible = globalFrame >= 0 && f >= 0 && f < meta.num_frames;
+    group.visible = globalFrame >= 0 && f >= 0 && f < meta.num_frames && (meta.valid_frames?.[f] ?? true);
     if (!group.visible) return;
     if (actor.character) {
       if (actor.character.mesh.visible || (poseMenu.open && actor.skeleton?.group.visible)) actor.character.rig.apply(f);
@@ -604,7 +655,7 @@ export function initViewer(preview) {
     const root = frameRoot(f);
     sun.position.copy(root).add(SUN_OFFSET);
     sun.target.position.copy(root);
-    if ($("optFollow").checked) {
+    if (!sourceView && $("optFollow").checked) {
       const delta = root.clone().sub(state.prevRoot);
       camera.position.add(delta);
       controls.target.add(delta);
@@ -620,6 +671,7 @@ export function initViewer(preview) {
     state.frame = f;
     for (const actor of actors) drawActorFrame(actor, f);
     updateFrameRoot(f);
+    updateSourceCamera();
     scrub.value = f;
     const displayFrame = (state.scene ? sourceStart(m) : 0) + f + 1;
     $("frameLabel").textContent = `${displayFrame} / ${(state.scene ? sourceStart(m) : 0) + m.num_frames}`;
@@ -879,14 +931,26 @@ export function initViewer(preview) {
         }
       }
     }
-    const zooming = applyZoom();
-    const orbiting = controls.update();
+    const zooming = !sourceView && applyZoom();
+    const orbiting = !sourceView && controls.update();
     if (dirty) {
       dirty = false;
       const d = camera.position.distanceTo(controls.target);
-      scene.fog.near = d + 6;
-      scene.fog.far = d + 30;
-      renderer.render(scene, camera);
+      scene.fog.near = sourceView ? 100000 : d + 6;
+      scene.fog.far = sourceView ? 100001 : d + 30;
+      renderer.setScissorTest(false);
+      renderer.setViewport(0, 0, container.clientWidth, container.clientHeight);
+      if (sourceView) {
+        renderer.clear();
+        if (sourceFrameValid) {
+          const rect = sourceViewport(container.clientWidth, container.clientHeight, cameraData.image_size_hw);
+          renderer.setViewport(...rect);
+          renderer.setScissor(...rect);
+          renderer.setScissorTest(true);
+          renderer.render(scene, camera);
+          renderer.setScissorTest(false);
+        }
+      } else renderer.render(scene, camera);
     }
     if (state.playing || zooming || orbiting) {
       if (!renderRequest) renderRequest = requestAnimationFrame(tick);
@@ -1052,6 +1116,7 @@ export function initViewer(preview) {
       };
     },
     openCharacter: character.open,
+    getCameraTransform: cameraTransform,
     getPmxActors(people) {
       const selected = new Set(people.map(String));
       const targets = actors.filter((actor) => !state.scene || selected.has(String(actor.number)));
@@ -1059,7 +1124,7 @@ export function initViewer(preview) {
           targets.some((actor) => actor.character?.asset.kind !== "pmx")) return [];
       return targets.map((actor) => ({
         person: actor.number,
-        start: state.scene ? sourceStart(actor.meta) : 0,
+        start: state.scene || actor.meta.valid_frames ? sourceStart(actor.meta) : 0,
         sceneEnd: state.scene ? sourceStart(state.meta) + state.meta.num_frames - 1 : null,
         fps: actor.meta.fps,
         yaw: actor.group.rotation.y,
@@ -1089,7 +1154,11 @@ export function initViewer(preview) {
         video.currentTime = Math.min(video.duration, clock.timeOf(frame + 0.5));
       }
     },
-    async load(jobId, groupScene = null) {
+    async load(jobId, groupScene = null, cameraState = 'none') {
+      if (sourceView) setProjection(orbitCamera);
+      state.cameraState = cameraState;
+      cameraData = null;
+      $('sourceCameraView').disabled = cameraState !== 'ready';
       loadController?.abort();
       bodyController?.abort();
       bodyController = null;
@@ -1155,6 +1224,9 @@ export function initViewer(preview) {
       return meta;
     },
     clear() {
+      if (sourceView) setProjection(orbitCamera);
+      cameraData = null;
+      $('sourceCameraView').disabled = true;
       loadController?.abort();
       loadController = null;
       bodyController?.abort();

@@ -133,7 +133,8 @@ class CameraLifecycleTest(unittest.TestCase):
         with TemporaryDirectory() as temp:
             root = Path(temp)
             (root/'camera').mkdir()
-            (root/'motion.npz').write_bytes(b'frozen-body')
+            np.savez(root/'motion.npz',trans=np.zeros((6,3)),ground_height_m=.25)
+            frozen=(root/'motion.npz').read_bytes()
             job = dict(id='sample', status='done', params={}, stages=[dict(name='generation',status='completed')])
             initial = copy.deepcopy(job)
             queue, calls = [], []
@@ -164,7 +165,8 @@ class CameraLifecycleTest(unittest.TestCase):
             service.run('sample')
             self.assertEqual(client.get('/api/jobs/sample/camera/status').json['camera_state'],'ready')
             self.assertEqual(client.get('/api/jobs/sample/camera').status_code,200)
-            self.assertEqual((root/'motion.npz').read_bytes(),b'frozen-body')
+            self.assertEqual(client.get('/api/jobs/sample/camera').json['ground_y_m'],.25)
+            self.assertEqual((root/'motion.npz').read_bytes(),frozen)
             for key,value in initial.items():
                 self.assertEqual(job[key],value)
             interrupted = {**initial,'camera_state':'running'}

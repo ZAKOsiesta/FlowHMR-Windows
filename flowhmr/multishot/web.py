@@ -26,7 +26,9 @@ def register_camera_routes(app, get_job, job_directory, load_joints, tasks=None)
     @app.get('/api/jobs/<job_id>/camera')
     def paired_camera(job_id):
         try:
-            return jsonify(Camera.load(root(job_id) / 'camera/camera.npz').json())
+            from .ground import stored_floor
+            directory=root(job_id)
+            return jsonify(Camera.load(directory / 'camera/camera.npz').json(stored_floor(directory)))
         except FileNotFoundError:
             return missing()
         except (ValueError, KeyError) as exc:

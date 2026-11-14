@@ -1592,6 +1592,9 @@ class V2MInferenceEngine:
         else:
             _pcb(StageName.GENERATION, 100, "Generation complete")
 
+        if self.postprocess is not None:
+            from flowhmr.multishot.ground import write_correction
+            write_correction(Path(final_fbx_path).with_suffix('.npz'),self.postprocess.last_report)
         self._activate_stage()
         return sub_dir
 

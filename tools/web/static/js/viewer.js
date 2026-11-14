@@ -434,7 +434,7 @@ export function initViewer(preview) {
   function syncGround() {
     groundInput.disabled = groundAuto.checked;
     if (groundAuto.checked) {
-      const height = (estimatedGround?.height_m ?? 0) - (state.meta?.camera_state === 'ready' ? .015 : 0);
+      const height = estimatedGround?.height_m ?? 0;
       setGround(height);
       groundInput.value = height.toFixed(3);
       const source = ["correction", "shared", "contacts", "soles"].includes(estimatedGround?.source)

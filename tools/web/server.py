@@ -1205,15 +1205,10 @@ def run_job(job_id):
         shutil.copy2(result + ".fbx", os.path.join(out_root, "motion.fbx"))
 
     camera = camera_summary(out_root, params)
-    correction = None
-    if engine.postprocess is not None:
-        report = engine.postprocess.last_report
-        correction = {"floor_m": float(report["floor"]), "automatic": params["correction_floor_m"] is None,
-                      "preset": report["preset"],
-                      "contacts": int(report["contacts"]), "seconds": float(report["elapsed_seconds"]),
-                      "warning": report.get("warning", "")}
-        if "sole_fit" in report:
-            correction["sole_fit"] = report["sole_fit"]
+    from flowhmr.multishot.ground import correction_summary
+    correction = correction_summary(result+'.npz',engine.postprocess,params)
+    if correction is not None and os.path.isfile(result + ".correction.json"):
+        shutil.copy2(result + ".correction.json", os.path.join(out_root, "motion.correction.json"))
     now = time.time()
     with JOBS_LOCK:
         if job_id in CANCEL_REQUESTS:
@@ -2512,8 +2507,9 @@ def api_vrma(job_id):
     extension = "zip" if chosen is not None and len(chosen) > 1 else "vrma"
     folder = os.path.join(os.path.dirname(source), "exports")
     try:
+        from flowhmr.multishot.ground import published_floor
         floor = float(job["scene"].get("ground_m", 0.) if chosen is not None
-                      else (job.get("correction") or {}).get("floor_m", 0.))
+                      else published_floor(os.path.dirname(source), job.get("correction"), 0.))
         if not np.isfinite(floor):
             raise ValueError("Invalid motion ground height")
         stamp = (file_stamp(source), signature, floor,
@@ -2575,8 +2571,10 @@ def api_skeleton(job_id):
     except FileNotFoundError:
         abort(404)
     correction = job.get("correction")
-    if correction:
-        info = {**info, "ground": {"height_m": correction["floor_m"], "source": "correction"}}
+    from flowhmr.multishot.ground import published_floor
+    height=published_floor(job_dir(job_id),correction,info['ground']['height_m'])
+    if correction or height!=info['ground']['height_m']:
+        info = {**info, "ground": {"height_m": height, "source": "correction"}}
     response = send_file(path, mimetype="application/octet-stream", conditional=True)
     response.headers["X-FlowHMR-Inspection"] = json.dumps(info, separators=(",", ":"))
     return response
@@ -2599,7 +2597,8 @@ def api_pmx_motion(job_id):
 
     try:
         joint_path, info = INSPECTION.load(directory, body_reference=reference)
-        floor = (job.get("correction") or {}).get("floor_m", info["ground"]["height_m"])
+        from flowhmr.multishot.ground import published_floor
+        floor = published_floor(directory,job.get('correction'),info['ground']['height_m'])
         stream, meta = pmx_motion(directory, reference_path, joint_path, info, floor)
     except (OSError, ValueError, KeyError, TypeError, BadZipFile) as exc:
         app.logger.warning("Could not read the PMX source motion for %s: %s", job_id, exc)

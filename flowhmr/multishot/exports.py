@@ -18,6 +18,8 @@ def camera_bundle(directory, format_name, joints, transform=None):
     original = Camera.load(root / 'camera/camera.npz')
     scale, translation = transform_parameters(transform)
     camera = original.transformed(scale, translation)
+    from .ground import stored_floor
+    ground=stored_floor(root)*scale+float(translation[1])
     if joints is not None:
         joints = np.asarray(joints) * scale + translation
     with np.load(root / 'motion.npz', allow_pickle=False) as motion:
@@ -47,7 +49,7 @@ def camera_bundle(directory, format_name, joints, transform=None):
     with TemporaryDirectory(prefix='paired-', dir=folder) as temp:
         temp = Path(temp)
         camera.save(temp / 'camera.npz')
-        (temp / 'camera.json').write_text(json.dumps(camera.json(), ensure_ascii=False, allow_nan=False), encoding='utf-8')
+        (temp / 'camera.json').write_text(json.dumps(camera.json(ground), ensure_ascii=False, allow_nan=False), encoding='utf-8')
         if format_name == 'vmd':
             from .camera_vmd import export_camera_vmd
             report['camera'] = export_camera_vmd(camera, joints, temp / 'camera.vmd')

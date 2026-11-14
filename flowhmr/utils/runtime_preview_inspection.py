@@ -8,7 +8,7 @@ import numpy as np
 
 from flowhmr.model_files import smplh_reference_path
 
-_VERSION = 1
+_VERSION = 2
 _JOINT_COUNT = 52
 
 
@@ -62,10 +62,15 @@ class PreviewInspection:
             reference = body_reference or meta.get("body_reference") or "neutral"
             frames, vertices = int(meta["num_frames"]), int(meta["num_vertices"])
             expected = frames * _JOINT_COUNT * 3 * 4
+            from flowhmr.multishot.runtime import digest
+            vertex_info = (mesh_dir / "vertices.bin").stat()
+            identity = {"motion_sha256": digest(root / "motion.npz"),
+                        "vertices": [vertex_info.st_size, vertex_info.st_mtime_ns, vertex_info.st_ino]}
             try:
                 info = json.loads(sidecar.read_text(encoding="utf-8"))
                 parents = info["parents"]
                 if (info["version"] == _VERSION and info["frames"] == frames
+                        and info.get("identity") == identity
                         and info.get("body_reference", "neutral") == reference
                         and isinstance(parents, list) and len(parents) == _JOINT_COUNT and parents[0] == -1
                         and all(type(parent) is int and 0 <= parent < i for i, parent in enumerate(parents[1:], 1))
@@ -82,6 +87,7 @@ class PreviewInspection:
                 trans = torch.from_numpy(np.asarray(data["trans"], dtype=np.float32))
                 shapes = torch.from_numpy(np.asarray(data["betas"], dtype=np.float32)).reshape(1, -1)
                 contacts = data.get("foot_contacts")
+                ground_height = data.get("ground_height_m")
             joints = np.empty((frames, len(parents), 3), dtype="<f4")
             heights = np.empty((frames, 2), dtype=np.float32)
             # Read only the feet from the existing float16 mesh file, without loading the whole sequence.
@@ -99,8 +105,13 @@ class PreviewInspection:
             if not np.isfinite(joints).all() or not np.isfinite(heights).all():
                 raise ValueError("Non-finite preview geometry")
 
+            ground = _estimate_floor(heights, joints[:, [7, 8]], contacts, float(meta["fps"]))
+            if ground_height is not None:
+                if not np.isfinite(ground_height).all() or np.size(ground_height) != 1:
+                    raise ValueError("Invalid published ground height")
+                ground = {"height_m": float(ground_height), "source": "correction"}
             info = {"version": _VERSION, "parents": parents, "frames": frames, "body_reference": reference,
-                    "ground": _estimate_floor(heights, joints[:, [7, 8]], contacts, float(meta["fps"]))}
+                    "identity": identity, "ground": ground}
             pending = stream.with_suffix(".bin.part")
             joints.tofile(pending)
             pending.replace(stream)

@@ -50,11 +50,11 @@ class Camera:
     def save(self, path):
         np.savez_compressed(path, **self.arrays())
 
-    def json(self):
+    def json(self, ground_y_m=0.):
         return {**{k: v.tolist() if isinstance(v, np.ndarray) else v for k, v in self.arrays().items()},
                 'world': 'paired_motion_y_up_metres', 'extrinsics': 'world_to_opencv_camera',
                 'intrinsics': 'source_image_pixels', 'frame_index': 'track_relative',
-                'ground_y_m': 0, 'physical_calibration_guaranteed': False}
+                'ground_y_m': float(ground_y_m), 'physical_calibration_guaranteed': False}
 
     @property
     def centers(self):

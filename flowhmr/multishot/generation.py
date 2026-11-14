@@ -4,6 +4,7 @@ This adapter owns jobs, model lifecycles and output files. Gauge calculations
 remain array operations; short-gap visibility checks use source image evidence.
 """
 import json
+import copy
 from pathlib import Path
 import numpy as np
 
@@ -196,7 +197,7 @@ def _join_motion(parts, valid, first):
             poses[:,0] = Rotation.from_matrix(rotation @ Rotation.from_rotvec(poses[:,0]).as_matrix()).as_rotvec()
             trans = trans @ rotation.T
             shift = previous[1]-trans[0]
-            shift[1] = 0  # native floor/contact height remains authoritative
+            shift[1] = 0  # segment heights have already been placed on the common ground
             trans += shift
             placements.append(dict(source_start=first+a, yaw_deg=float(np.degrees(angle)), shift_m=shift.tolist(),
                                    basis='held heading and horizontal position across absence'))
@@ -257,7 +258,7 @@ def process_linked(engine, video, sub_dir, name, meta, shots, *, detection_range
     full_boxes[first:stop], full_K[first:stop] = boxes, K
     all_points = np.full((stop-first,70,3),np.nan,np.float32)
     all_orientation = np.full((stop-first,3,3),np.nan,np.float32)
-    parts, prepared, all_breaks = [], [], []
+    parts, prepared, all_breaks, corrections = [], [], [], []
     total_valid=int(valid.sum())
     observed=0
     for run_index,(a,b) in enumerate(intervals(valid)):
@@ -304,16 +305,29 @@ def process_linked(engine, video, sub_dir, name, meta, shots, *, detection_range
             suffix = '' if engine.postprocess is not None or hamer else '_origin'
             with np.load(target/f'{name}_seed{seed}{suffix}.npz',allow_pickle=False) as z:
                 motion = dict(z)
+            if engine.postprocess is not None:
+                corrections.append(copy.deepcopy(engine.postprocess.last_report))
             parts.append((a+left,a+right,motion,left in breaks))
             report['intervals'].append(dict(source_frames=[first+a+left,first+a+right],
                 continuity_guard=[{**g,'source_frame':first+a+g['frame']} for g in guard],arm_fit=dict(enabled=False,removed=True)))
             generated+=right-left
             save_json(folder/'report.json',report)
+    combined_correction=None
+    if corrections:
+        from .ground import align_segment_ground,aggregate_correction
+        options=getattr(engine.postprocess,'options',{})
+        parts,report['ground']=align_segment_ground(parts,corrections,first,
+            fixed_floor=None if options.get('auto_floor',True) else options['floor'])
+        combined_correction=aggregate_correction(report['ground'])
     motion, report['placements'] = _join_motion(parts,valid,first)
+    if corrections and len(parts)>1:motion['ground_height_m']=np.float64(report['ground']['height_m'])
     check()
     suffix = '' if engine.postprocess is not None or hamer else '_origin'
     output = Path(sub_dir)/f'{name}_seed{seed}{suffix}'
     save_npz(output.with_suffix('.npz'),**motion)
+    if combined_correction is not None:
+        from .ground import write_correction
+        write_correction(output.with_suffix('.npz'),combined_correction)
     try:
         from flowhmr.core.export.smplh2fbx import SMPLH2FBX
     except ImportError:

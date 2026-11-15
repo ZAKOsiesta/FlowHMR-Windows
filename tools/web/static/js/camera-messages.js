@@ -39,7 +39,7 @@ export function cameraStatusMessage(status) {
 export function cameraQualityMessage(quality) {
   if (!quality?.degraded) return '';
   const key = ['weights_missing', 'weights_corrupt', 'runtime_missing', 'unsupported_device',
-    'inference_failed', 'static_camera', 'unstable', 'legacy_fallback', 'unverified'].includes(quality.reason)
+    'inference_failed', 'static_camera', 'unstable', 'legacy_fallback', 'unverified', 'body_ground'].includes(quality.reason)
     ? quality.reason : 'unverified';
   return m(`camera.gravity_${key}`, {count:quality.fallback_shots?.length ?? 0, total:quality.total_shots ?? 0});
 }

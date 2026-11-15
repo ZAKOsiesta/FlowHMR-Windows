@@ -36,7 +36,7 @@ def model_inventory(device, ckpt=None, config=None):
     from .geocalib_setup import runtime_issue
     geo_issue = runtime_issue(device)
     geo = _item('geocalib', 'GeoCalib · 图像重力', (files.resolve_model(files.GEOCALIB),),
-                'models/geocalib', [('官方权重', sources.GEOCALIB_URL)], required=False,
+                'models/geocalib', [('官方模型', sources.GEOCALIB_URL)], required=False,
                 issue='图像重力组件不可用；原片机位将降级。' if geo_issue else None,
                 issue_code=f'geocalib_{geo_issue}' if geo_issue else None)
     geo['role'] = 'source_camera'

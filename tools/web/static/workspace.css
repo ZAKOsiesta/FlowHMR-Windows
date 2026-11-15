@@ -710,9 +710,8 @@ body { height: 100dvh; }
   .timeline-head .controls { justify-content: center; }
 }
 .source-camera-warning {
-  position: absolute; z-index: 5; top: 50px; left: 12px; right: 12px;
-  width: fit-content; max-width: min(680px, calc(100% - 24px));
-  padding: 9px 12px; border: 1px solid #b98a3c; border-radius: 5px;
+  flex: 0 0 auto; min-width: 0;
+  padding: 8px 12px; border-bottom: 1px solid #b98a3c;
   background: #302617ed; color: #ffe0a0; font-size: 12px; line-height: 1.5;
-  pointer-events: none;
+  overflow-wrap: anywhere;
 }

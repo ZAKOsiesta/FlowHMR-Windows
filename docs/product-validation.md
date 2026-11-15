@@ -19,6 +19,26 @@ python -m unittest discover -s tests -v
 
 运动相机沿用 VGGT。可选 GeoCalib 源码位于 `third_party/GeoCalib`，离线权重为 `models/geocalib/pinhole.tar`；当前入口先检查这两个路径，随后从源码及 `optional_packages/geocalib` 查找模块。仅安装模块而未提供这些路径不会启用它。缺失或不支持当前设备时采用人物/地面回退。GeoCalib 不应变成启动应用或固定机位生成的硬依赖。
 
+### Windows 并存工作树的子模块
+
+不能把新工作树的已初始化子模块直接联接到旧子模块目录：旧 `.git` 文件使用相对路径，
+顶层 `git status` 会从错误位置解析它。`tools/prepare_worktree_dependencies.py`
+从已有安装建立独立子模块仓库，保留版本、文件和本地修补，使用自己的 Git 元数据及对象，
+再将新入口联接到指定存储目录。它不下载新版本、不改变源安装，也不初始化源安装没有启用的子模块。
+
+在新工作树运行，三个参数使用实际绝对路径；`--storage` 必须位于旧安装之外：
+
+```powershell
+python tools/prepare_worktree_dependencies.py --source C:/FlowHMR/p4 --destination C:/FlowHMR/v036 --storage F:/FlowHMR/v036-dependencies
+git status --short
+git submodule status
+git submodule foreach --recursive 'git status --short'
+```
+
+同一配置重复运行保留新副本的后续修改；遇到版本不一致或未知非空目录会停止。
+普通 Git 查询必须直接成功，不能用忽略子模块掩盖问题。SAM 的已安装本地修补可以继续显示为修改。
+这只处理注册子模块；任务、角色偏好和可写缓存仍需分别隔离，模型权重可只读复用。
+
 ## 验证范围
 
 | 项目 | 当前口径 |

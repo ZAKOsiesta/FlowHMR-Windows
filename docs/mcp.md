@@ -156,9 +156,12 @@ MCP 的导出可在后台运行，不需要打开预览。它继续从任务结�
 NPZ 本身作为完整文件保留，不拆成数组成员。MCP 配套导出沿用通用动作导出的源人体，
 不烘焙选中 PMX 的预览偏移；选中角色的配套导出使用桌面导出窗口。
 
-`include_camera` 默认 `false`，旧单文件调用保持原行为。带空档的 VMD/FBX
-可能需要多文件包，此时使用 `.zip` 目标；误用 `.vmd` 或 `.fbx` 会返回
+`include_camera` 默认 `false`，旧单文件调用保持原行为。带空档的 VMD/FBX/VRMA
+可能需要多文件包，此时使用 `.zip` 目标；误用 `.vmd`、`.fbx` 或 `.vrma` 会返回
 `export_requires_zip`，不会把 ZIP 内容伪装为单文件。`overwrite` 默认仍为 `false`。
+收到该错误后，将 `output_path` 改为 `.zip` 重试，`format` 保持原值。
+VRMA 空档包保留动画及 `motion-report.json`；无空档单人仍可输出 `.vrma`，
+多人使用 `.zip`。VRMA 不支持 `include_camera: true`。
 生成参数和地面、相机模式的解释见 [使用指南](multishot.md)。
 
 ## 角色和骨骼

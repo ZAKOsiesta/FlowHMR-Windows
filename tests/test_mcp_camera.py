@@ -66,27 +66,58 @@ class CameraMCPTests(unittest.TestCase):
                 self.assertFalse(list(root.glob('.flowhmr-*')))
                 self.assertNotIn('/api/upload',calls)
 
-    def test_gap_zip_never_masquerades_as_a_vmd(self):
-        payload=archive({'motion.vmd':b'vmd','motion-report.json':b'{}'})
-        for suffix in ['vmd','zip']:
-            with TemporaryDirectory() as tmp:
+    def test_gap_zip_retry_works_without_masquerading_as_a_motion_file(self):
+        for format_name in ['vmd','fbx','vrma']:
+          payload=archive({f'motion.{format_name}':format_name.encode(),'motion-report.json':b'{}'})
+          for suffix in [format_name,'zip']:
+            with self.subTest(format=format_name,suffix=suffix),TemporaryDirectory() as tmp:
                 root=Path(tmp);target=root/('motion.'+suffix)
                 def handler(r):
-                    if r.url.path.endswith('/vmd'):return httpx.Response(200,content=payload)
-                    return httpx.Response(200,json={'id':'sample','status':'done','selected_person':0})
+                    if r.url.path.endswith('/'+format_name):return httpx.Response(200,content=payload)
+                    return httpx.Response(200,json={'id':'sample','status':'done','selected_person':0,'has_fbx':True})
                 exports=Exports(root/'receipts',self.backend(handler))
                 async def run():
-                    row=await exports.submit(ExportOptions(job_id='sample',format='vmd',output_path=str(target)))
+                    row=await exports.submit(ExportOptions(job_id='sample',format=format_name,output_path=str(target)))
                     await exports.close();return exports.get(row['export_id'])
                 row=asyncio.run(run())
-                if suffix=='vmd':
+                if suffix==format_name:
                     self.assertEqual(row['error']['code'],'export_requires_zip');self.assertFalse(target.exists())
                 else:
-                    with ZipFile(target) as z:self.assertEqual(z.read('motion.vmd'),b'vmd')
+                    self.assertEqual(row['status'],'done')
+                    with ZipFile(target) as z:
+                        self.assertEqual(z.read(f'motion.{format_name}'),format_name.encode())
+                        self.assertEqual(z.read('motion-report.json'),b'{}')
 
     def test_old_options_stay_valid_and_unsupported_camera_formats_are_rejected(self):
         self.assertFalse(ExportOptions(job_id='sample',format='npz',output_path='unused').include_camera)
         for options in [dict(format='vrma'),dict(format='fbx',fbx_profile='mixamo')]:
             with self.assertRaises(ValidationError):ExportOptions(job_id='sample',output_path='unused',include_camera=True,**options)
+
+    def test_plain_vrma_multi_vrma_and_native_npz_keep_their_containers(self):
+        npz=BytesIO();np.savez(npz,trans=np.zeros((2,3)))
+        multiple=archive({'person_01.vrma':b'glTF-first','person_02.vrma':b'glTF-second'})
+        for fmt,suffix,people,payload in [('vrma','vrma',1,b'glTF-single'),
+                                        ('vrma','zip',1,b'glTF-single'),
+                                        ('vrma','zip',2,multiple),('npz','npz',1,npz.getvalue())]:
+            with self.subTest(format=fmt,suffix=suffix,people=people),TemporaryDirectory() as tmp:
+                root=Path(tmp);target=root/('motion.'+suffix)
+                def handler(r):
+                    if r.url.path.endswith('/'+fmt):return httpx.Response(200,content=payload)
+                    job={'id':'sample','status':'done','selected_person':0}
+                    if people==2:job['scene']={'people':[{'person':1},{'person':2}]}
+                    return httpx.Response(200,json=job)
+                exports=Exports(root/'receipts',self.backend(handler))
+                async def run():
+                    row=await exports.submit(ExportOptions(job_id='sample',format=fmt,output_path=str(target)))
+                    await exports.close();return exports.get(row['export_id'])
+                row=asyncio.run(run());self.assertEqual(row['status'],'done')
+                if suffix!='zip':self.assertEqual(target.read_bytes(),payload)
+                else:
+                    with ZipFile(target) as actual:
+                        if people==1:self.assertEqual(actual.read('motion.vrma'),payload)
+                        else:
+                            with ZipFile(BytesIO(payload)) as expected:
+                                self.assertEqual(actual.namelist(),expected.namelist())
+                                for name in expected.namelist():self.assertEqual(actual.read(name),expected.read(name))
 
 if __name__=='__main__':unittest.main()

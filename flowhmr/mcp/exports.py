@@ -71,9 +71,9 @@ class Exports:
         if not path.is_absolute() or str(path).startswith(('\\\\.\\', '\\\\?\\')):
             fail('invalid_path', 'output_path must be an absolute ordinary file path.')
         allowed = {'.'+extension}
-        if options.format in ('vmd','fbx') and not options.include_camera:allowed.add('.zip')
+        if options.format in ('vmd','fbx','vrma') and not options.include_camera:allowed.add('.zip')
         if not path.parent.is_dir() or path.suffix.lower() not in allowed:
-            fail('invalid_path', f'Target parent must exist and extension must be .{extension}.')
+            fail('invalid_path', f"Target parent must exist and extension must be one of: {', '.join(sorted(allowed))}.")
         if path.is_symlink() or (path.exists() and not path.is_file()):
             fail('invalid_path', 'Target must be a regular file, not a directory or symlink.')
         path = path.parent.resolve() / path.name

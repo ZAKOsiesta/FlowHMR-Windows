@@ -1,6 +1,6 @@
 # FlowHMR Windows 桌面版
 
-本地产品候选分支的新增剪辑/相机功能见 [使用指南](multishot.md)，安装依赖与已验证设备范围见 [产品验证记录](product-validation.md)。本轮只验证当前 CUDA 设备；用户已明确将非 CUDA 实机冒烟延期。下方是原版发行包的安装说明，不表示候选分支已经发布或验证了所有设备。
+剪辑视频连接、原片相机恢复和配套导出见 [使用指南](multishot.md)。这些功能已在 Windows / NVIDIA CUDA 上验证，CPU、ROCm 和 Intel XPU 路径尚未验证；依赖和限制见 [验证说明](product-validation.md)。下面介绍桌面版的安装及运行环境，具体发行包包含的功能以该版本发布说明为准。
 
 适用于 64 位 Windows 10 / 11，见 [最低配置与支持设备](../README.md#最低配置与支持设备)。基础包带 Python 3.10 和界面依赖，可以直接打开软件。生成前请选择并启用推理环境：NVIDIA 使用 CUDA，Windows 11 上的 AMD Radeon 使用 [ROCm](amd-rocm.md)，兼容的 Intel Arc 可试用 Intel XPU；Intel 和 AMD x64 处理器也可选实验性的纯 CPU 推理。
 

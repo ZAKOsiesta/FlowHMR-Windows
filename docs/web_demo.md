@@ -1,8 +1,8 @@
 # Web Demo
 
 For multi-shot generation, source-camera recovery, cancellation/retry and paired
-export, see [the user guide](multishot.md). Candidate hardware and release limits
-are recorded in [product validation](product-validation.md).
+export, see [the user guide](multishot.md). Tested hardware, dependencies and limitations
+are recorded in [validation notes](product-validation.md).
 
 Copy this into your coding agent:
 

@@ -4,7 +4,7 @@
 
 **FlowHMR-Windows** 是一款在本机运行的视频动捕软件。导入普通视频后，可以选取一个或多个人物，重建他们的 3D 人体动作，同步预览并导出。动作重建采用 [FlowHMR](https://github.com/flowhmr/flowhmr) 上游模型；本仓库独立维护 Windows 便携版、模型与运行环境管理，以及从选人到导出的桌面工作流。
 
-当前本地产品候选分支新增剪辑视频连接、原片相机恢复和配套导出，入口见 [使用指南](docs/multishot.md)、[MCP 说明](docs/mcp.md) 与 [验证边界](docs/product-validation.md)。新增功能已在当前 CUDA 设备验证，非 CUDA 实机按用户决定延期；下方原版发布链接不表示本候选分支已公开发行。
+剪辑视频支持单人跨镜头连接、按需恢复原片相机，以及动作和相机配套导出；界面和 MCP 的使用方法见 [使用指南](docs/multishot.md)、[MCP 说明](docs/mcp.md)。这些功能已在 Windows / NVIDIA CUDA 上验证，CPU、ROCm 和 Intel XPU 路径尚未验证；依赖、已知限制和检查范围见 [验证说明](docs/product-validation.md)。发行包包含哪些功能，以对应版本的发布说明为准。
 
 **[下载 Windows 便携版](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest/download/FlowHMR-Windows.zip)** · [查看发布说明](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest) · [FlowHMR 论文](https://arxiv.org/abs/2610.03691)
 

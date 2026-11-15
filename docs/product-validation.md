@@ -1,0 +1,43 @@
+# 产品候选分支：安装与验收边界
+
+本分支在原版基础上加入单人跨镜头连接、按需恢复相机、配套导出和公开 MCP。它是本地候选实现，不代表已经发布新的 Windows 安装包。原版下载链接和原版设备支持说明不能代替本分支的验证结果。
+
+## 本机环境与依赖
+
+本轮实际使用 Windows build 26200、Python 3.10.20、NVIDIA RTX PRO 4500 Blackwell、PyTorch 2.8.0+cu128、torchvision 0.23.0+cu128、NumPy 1.26.4、SciPy 1.15.3、PySceneDetect 0.6.7.1、MCP 1.28.0、Flask 3.1.3。复用已有模型和 CUDA 推理环境，在独立代码副本中验证；没有把这种复用记成空白机器全新安装。
+
+Windows 依赖入口仍是 `requirements-windows.txt`，并读取 `tools/web/requirements.txt`；本分支新增的 PySceneDetect 约束为 `>=0.6.7,<0.7`，本机锁定版本为 `0.6.7.1`，已写入 `requirements-windows.lock.txt`。MCP、FBX SDK、接触修正以及主模型沿用原安装方式。不要把通用训练安装文档中的历史 CUDA 示例当作本机已验证版本。
+
+在仓库根目录、启用目标推理环境后执行：
+
+```powershell
+python tools/windows/check_install.py --json
+python -m unittest discover -s tests -v
+```
+
+安装检查包含 PySceneDetect、MCP、主模型依赖导入、实际设备矩阵运算与 NMS、必要模型存在性及可选 FBX/接触修正组件。它不能代替一次完整视频生成，也不等于验证了打包器、首次联网下载或其他硬件。
+
+运动相机沿用 VGGT。可选 GeoCalib 源码位于 `third_party/GeoCalib`，离线权重为 `models/geocalib/pinhole.tar`；当前入口先检查这两个路径，随后从源码及 `optional_packages/geocalib` 查找模块。仅安装模块而未提供这些路径不会启用它。缺失或不支持当前设备时采用人物/地面回退。GeoCalib 不应变成启动应用或固定机位生成的硬依赖。
+
+## 验证范围
+
+| 项目 | 当前口径 |
+|---|---|
+| 本机 CUDA 普通流程、公开 MCP 与配套导出 | 需要本轮实际新任务和回执，不能只以单元测试通过代替 |
+| 原任务导出、固定条件的动作生成 | 继续逐字节比较；禁止自动更新基线 |
+| 冷 SAM 全链路重复生成 | P0 已发现数值差异，原逐字节要求未通过；尚未同意容差替代 |
+| 新写 FBX | P0 发现文件字节不同，骨架逐帧回读一致；后者只作诊断，不能冲销严格字节失败 |
+| 寄明月与认可动作的身体 99 分位 5 mm 门槛 | P3 未达到，保留全片对照和视觉评审；跨空档朝向差异单独记录 |
+| 换体型后的脚底 | 已测 PMX 仍有残差，不承诺零穿地或自动适配所有体型 |
+| CPU、ROCm、Intel XPU、其他非 CUDA 实机 | 用户仅有当前设备，本轮明确延期；未验证，不能写成通过或用模拟测试替代 |
+| 新便携安装包、干净机器安装、公开发布 | 本轮未执行，不由 P4 实现完成自动推定通过 |
+
+非 CUDA 延期不阻塞本轮 P4 实现与本机收尾，但没有扩展已验证设备范围。P0 严格门槛、P3 动作门槛和全片视觉结论仍是独立发布决策；必须显式记录后续接受或修订，不能以「可发布」一词掩盖。
+
+## 可复用回归入口
+
+`tools/p0_regression.py` 提供 `record`、`check`、`compare`；记录基线使用独占创建，检查不覆写基线，同时报告 NPZ 文件字节及数组摘要。严格模式有任何差异就失败。
+
+`tools/compare_fbx_readback.py LEFT.fbx RIGHT.fbx --report report.json` 使用安装的 FBX SDK，比较骨架层级、单位、轴向、时间范围和每个整数帧的全局矩阵。它同时保留字节是否相同，退出码仍按严格字节标准判定。此工具限于骨架动画诊断，不覆盖网格、材质、曲线帧间插值或渲染质量。
+
+`node tools/check_locales.mjs` 检查七种语言的键与占位符一致性和相机进度消息覆盖。它不替代母语文字审校或实际界面检查。

@@ -1,5 +1,6 @@
 // Thin client for the FlowHMR demo server (tools/web/server.py).
 import { appError, localize, message, serverMessage } from "./i18n.js";
+import { cameraStatusMessage } from './camera-messages.js';
 
 function httpError(payload, status, statusText = "") {
   const fallback = payload?.error || message("server.http_status", { status, statusText });
@@ -124,7 +125,10 @@ export async function prepareCamera(id, signal, onProgress = () => {}) {
     onProgress(status);
     window.dispatchEvent(new CustomEvent('flowhmr:cameraprogress', { detail: { id, ...status } }));
     if (status.camera_state === 'ready') return status;
-    if (['failed', 'cancelled'].includes(status.camera_state)) throw new Error(status.error || status.message);
+    if (['failed', 'cancelled'].includes(status.camera_state)) {
+      const error=new Error(localize(cameraStatusMessage(status)));
+      error.i18n=cameraStatusMessage(status);error.cause=status.error;throw error;
+    }
     await new Promise((resolve, reject) => {
       const abort = () => { clearTimeout(timer); reject(signal.reason); };
       const timer = setTimeout(() => { signal?.removeEventListener('abort', abort); resolve(); }, 700);

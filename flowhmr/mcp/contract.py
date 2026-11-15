@@ -12,6 +12,7 @@ Policy = Literal['explicit', 'automatic']
 TOOL_NAMES = ['flowhmr_get_status', 'flowhmr_get_parameter_schema', 'flowhmr_import_video',
               'flowhmr_list_jobs', 'flowhmr_get_job', 'flowhmr_select_people',
               'flowhmr_rerun_job', 'flowhmr_cancel_job', 'flowhmr_prepare_scene',
+              'flowhmr_prepare_camera', 'flowhmr_get_camera_status', 'flowhmr_cancel_camera',
               'flowhmr_export_motion', 'flowhmr_get_export', 'flowhmr_import_character',
               'flowhmr_list_characters', 'flowhmr_get_character_pose',
               'flowhmr_select_character', 'flowhmr_update_character_pose',
@@ -70,6 +71,7 @@ class ExportOptions(BaseModel):
     format: Literal['fbx', 'vmd', 'vrma', 'npz']
     output_path: str
     overwrite: bool = False
+    include_camera: bool = False
     person_ids: People | None = None
     fbx_profile: Literal['flowhmr', 'mixamo', 'metahuman', 'maya_adv', 'mixamo_iclone'] = 'flowhmr'
     include_mesh: bool = True
@@ -78,6 +80,9 @@ class ExportOptions(BaseModel):
 
     @model_validator(mode='after')
     def supported_options(self):
+        if self.include_camera and (self.format not in ('vmd','npz','fbx') or
+                (self.format == 'fbx' and (self.fbx_profile != 'flowhmr' or self.template_path))):
+            raise ValueError('Paired camera export supports VMD, NPZ and the FlowHMR FBX profile only')
         if self.format != 'fbx' and self.model_fields_set & {
                 'fbx_profile', 'include_mesh', 'reference_pose', 'template_path'}:
             raise ValueError('FBX options require format=fbx')

@@ -27,7 +27,11 @@ The service boundary is `CameraTasks.prepare/status/cancel/run`; HTTP routes are
 | `image_size_hw[2]` | Source image height and width |
 | `version` | 1 |
 
-The preview uses full intrinsics and letterboxing. Its automatic floor is lowered 0.015 m for paired tasks only. This display offset never changes the motion or camera data.
+The preview uses full intrinsics and letterboxing. Its automatic floor reads the
+declared final motion ground; it no longer applies the historical 0.015 m display
+offset. Linked segments are translated by one constant vertical offset per segment
+to their common correction ground, with their native estimates retained in the
+report. This is separate from the viewer's manual display-ground control.
 
 ## PMX scale and height
 

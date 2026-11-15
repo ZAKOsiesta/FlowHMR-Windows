@@ -40,6 +40,9 @@ MCP 创建的任务会显示在桌面任务历史中。队列、任务进度、�
 | `flowhmr_rerun_job` | 使用新参数创建重跑任务 |
 | `flowhmr_cancel_job` | 请求取消排队中或运行中的任务 |
 | `flowhmr_prepare_scene` | 为需要对齐的多人结果创建场景 |
+| `flowhmr_prepare_camera` | 为已完成动作排队恢复相机；已就绪则复用，失败或取消后再次调用即重试 |
+| `flowhmr_get_camera_status` | 查询独立相机状态；`include_report: true` 附带已就绪相机的逐镜头报告 |
+| `flowhmr_cancel_camera` | 请求停止相机计算，保留人物动作 |
 | `flowhmr_export_motion` | 提交 FBX、VMD、VRMA 或 NPZ 导出 |
 | `flowhmr_get_export` | 查询导出状态和文件信息 |
 | `flowhmr_import_character` | 导入 PMX、VRM 或带蒙皮的 FBX 角色 |
@@ -78,6 +81,7 @@ MCP 创建的任务会显示在桌面任务历史中。队列、任务进度、�
 | 步数 | `steps` | 1–100 |
 | 种子 | `seed` | 0–2147483647 |
 | 相机模式 | `static_camera`、`vggt_interval` | 固定机位设 `static_camera: true`；运动相机设为 `false`，`vggt_interval` 为 0 时自动采样，1–120 时手动指定间隔 |
+| 跨镜头连接 | `shot_linking` | `auto` 自动检测并连接单人剪辑；`off` 使用原流程；多人加切镜暂回退原流程 |
 | 处理区间 | `start_frame`、`end_frame` | 标准化 30 FPS 视频的零基帧号，结束帧包含在内；`end_frame` 可为 `null` |
 | 滤波强度 | `smoothing_frames` | 单位为帧；界面强度 0.04 对应 0.12 帧 |
 | HaMeR 手指精修 | `hamer`、`hamer_stride` | 开关和采样间隔；间隔为 1、2、3 或 4 |
@@ -111,6 +115,48 @@ MCP 创建的任务会显示在桌面任务历史中。队列、任务进度、�
 ```
 
 提交后使用 `flowhmr_get_export` 和返回的 `export_id` 查询；状态为 `done` 时文件已导出。多人 VMD、VRMA 使用 `.zip` 输出；NPZ 导出完整结果，不支持按人物筛选。FBX 支持 `flowhmr`、`mixamo`、`metahuman`、`maya_adv` 和 `mixamo_iclone` 预设。模板和预设选项见 [导出与重定向](retarget-export.md)。
+
+## 相机准备、取消与配套导出
+
+`flowhmr_prepare_camera` 接收 `job_id`，立即返回独立相机状态，不等待长计算。
+用 `flowhmr_get_camera_status` 查询 `none`、`queued`、`running`、
+`cancel_requested`、`ready`、`failed` 或 `cancelled`；设置 `include_report: true`
+可在就绪时读取逐镜头报告。`flowhmr_cancel_camera` 请求取消相机步骤，
+不取消已完成动作。失败或取消后再次调用 prepare 即整步重试；已就绪时复用结果。
+这些工具与界面共用同一队列、状态和恢复实现。旧 `flowhmr_get_job` 等调用继续可用。
+
+```json
+{"name":"flowhmr_prepare_camera","arguments":{"job_id":"任务ID"}}
+{"name":"flowhmr_get_camera_status","arguments":{"job_id":"任务ID","include_report":true}}
+{"name":"flowhmr_cancel_camera","arguments":{"job_id":"任务ID"}}
+```
+
+配套导出设置 `include_camera: true`，目标必须为 `.zip`，父目录必须已存在。
+可以直接提交，服务会先准备相机；导出回执的 `phase` 会显示
+`waiting_for_camera` 或 `exporting`。直到 `status: done` 才是完整文件。
+相机失败或取消会令此次配套导出失败，不发布半份文件，也不重算人物动作。
+
+```json
+{
+  "name": "flowhmr_export_motion",
+  "arguments": {
+    "options": {
+      "job_id": "任务ID", "format": "npz",
+      "include_camera": true, "output_path": "D:\\Exports\\dance-paired.zip"
+    }
+  }
+}
+```
+
+支持 NPZ、VMD 和无自定义模板的 FlowHMR FBX。ZIP 内 `motion/` 与 `camera/`
+成套使用，`pairing.json` 记录源人体世界变换，`camera/export-report.json` 记录格式近似。
+NPZ 本身作为完整文件保留，不拆成数组成员。MCP 配套导出沿用通用动作导出的源人体，
+不烘焙选中 PMX 的预览偏移；选中角色的配套导出使用桌面导出窗口。
+
+`include_camera` 默认 `false`，旧单文件调用保持原行为。带空档的 VMD/FBX
+可能需要多文件包，此时使用 `.zip` 目标；误用 `.vmd` 或 `.fbx` 会返回
+`export_requires_zip`，不会把 ZIP 内容伪装为单文件。`overwrite` 默认仍为 `false`。
+生成参数和地面、相机模式的解释见 [使用指南](multishot.md)。
 
 ## 角色和骨骼
 

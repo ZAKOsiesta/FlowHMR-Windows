@@ -1,5 +1,9 @@
 # Web Demo
 
+For multi-shot generation, source-camera recovery, cancellation/retry and paired
+export, see [the user guide](multishot.md). Candidate hardware and release limits
+are recorded in [product validation](product-validation.md).
+
 Copy this into your coding agent:
 
 ```text
@@ -65,10 +69,12 @@ at startup. Static-camera jobs do not require its weights.
 ## Adjust settings
 
 All run settings are in the page's Settings card; see [params.md](params.md#web-demo).
-**Post-processing** enables RGBMocap contact planning and anatomical IK (off by default;
+**Post-processing** enables RGBMocap contact planning and anatomical IK (on by default;
 requires the [optional dependency](install.md#optional-post-processing)).
-Defaults: **SAM chunk = 16** frames; hand batch is automatically **32** crops.
-Query batching and compile are **off**. Set **SAM chunk** to `32` for body32/hand64.
+The default **SAM chunk is automatic**; the launcher may set a device-specific
+initial batch. Hand batches use twice the chosen body batch. SAM compilation is
+off; attention `auto` uses query batching above 5,000 motion frames. Set an
+explicit **SAM chunk** of `32` for body32/hand64 if memory allows.
 **SAM hand sampling** decodes the hands every frame by default; every 2 or 4
 frames keeps only the sampled hand tokens and linearly interpolates the rest,
 which speeds up SAM on long clips at a small finger-detail cost. Changing the

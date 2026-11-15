@@ -2,6 +2,7 @@
 import { $, show, el, formatSeconds, statusLabel, jobLabel } from "./utils.js";
 import { localize, message as m, serverMessage, setAttr, setText, t } from "./i18n.js";
 import { getCameraReport } from './api.js';
+import { multishotMessage, cameraStatusMessage } from './camera-messages.js';
 
 // Older histories and older runtimes carry human-readable progress strings.
 // Prefer structured message_code/message_params when present.
@@ -52,6 +53,7 @@ const LEGACY = new Map(Object.entries({
 const COUNTERS = [
   [/^Detecting people: (\d+)\/(\d+) frames$/, "job.detection_frames"],
   [/^SAM: (\d+)\/(\d+) frames$/, "job.sam_frames"],
+  [/^人物特征 · (\d+)\/(\d+) 帧$/, "job.sam_frames"],
   [/^正在补提取手框 · (\d+) \/ (\d+) 帧$/, "job.hand_box_frames"],
   [/^HaMeR 手指精修 · (\d+) \/ (\d+) 帧$/, "job.hamer_frames"],
   [/^对齐多人站位 · (\d+)\/(\d+) 个素材帧$/, "job.scene_frames"],
@@ -59,6 +61,8 @@ const COUNTERS = [
 
 function legacyMessage(value) {
   if (!value) return "";
+  const paired=multishotMessage(value);
+  if (paired) return localize(paired);
   if (LEGACY.has(value)) return t(LEGACY.get(value));
   for (const [pattern, key] of COUNTERS) {
     const match = value.match(pattern);
@@ -90,7 +94,7 @@ export function initProgress() {
       const rows = (report.shots || []).map((row) => {
         const [a, b] = row.source_frames;
         const first = report.track_start || 0;
-        return el('p', '', `${((a+first)/30).toFixed(1)}–${((b+first)/30).toFixed(1)}s · ${(row.labels || []).map(label => t(`camera.label_${label}`, {}, label)).join(' · ')}${row.error ? ` · ${row.error}` : ''}`);
+        return el('p', '', () => `${((a+first)/30).toFixed(1)}–${((b+first)/30).toFixed(1)}s · ${(row.labels || []).map(label => t(`camera.label_${label}`, {}, label)).join(' · ')}${row.error ? ` · ${row.error}` : ''}`);
       });
       $('pairedCameraReport').replaceChildren(el('p', '', m(report.shared_world ? 'camera.shared' : 'camera.confidence_hint')), ...rows);
       reportKey = key;
@@ -238,7 +242,8 @@ export function initProgress() {
         progress: job.camera_progress || 0, start: job.camera_started, end: job.camera_finished,
       }] : [];
       renderStages([...job.stages, ...cameraStages], job.now);
-      setText($("jobMsg"), () => [jobMessage(job), job.camera_message].filter(Boolean).join(' · '));
+      setText($("jobMsg"), () => [jobMessage(job), job.camera_state && job.camera_state!=='none'
+        ? localize(cameraStatusMessage({camera_state:job.camera_state,message:job.camera_message})) : ''].filter(Boolean).join(' · '));
       cameraJob = job;
       show(details, job.camera_state === 'ready');
       void renderCameraReport();
@@ -256,9 +261,9 @@ export function initProgress() {
         : linking?.reason === 'multiple_people' ? m('progress.shots_multiple') : '');
       setText($("workspaceState"), () => job.status === "running" ? `${job.progress}% · ${jobMessage(job)}`
         : job.status === "done" ? `${jobMessage(job)} · FlowHMR` : statusLabel(job.status));
-      const error = job.camera_error || serverMessage(job.error_code, job.error_params, job.error);
+      const error = job.camera_error ? m('camera.failed') : serverMessage(job.error_code, job.error_params, job.error);
       setText($("jobError"), error);
-      setAttr($("jobError"), "title", job.error || "");
+      setAttr($("jobError"), "title", job.camera_error || job.error || "");
       show("jobError", (job.status === "failed" || job.camera_state === 'failed') && !!localize(error));
     },
     showError(msg) {

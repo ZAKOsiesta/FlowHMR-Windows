@@ -29,15 +29,19 @@ Workflow: [web_demo.md](web_demo.md).
 | `--device` | `cuda` | Device for the models, e.g. `cuda:0` |
 | `--work_dir` | `output/web_jobs` | Uploads and job results |
 
-Everything else is set per run in the page's **Settings** card: sampling seed
-(`0`), CFG scale (`1.0`), flow-matching ODE steps (`20`), max frames at 30 fps
-(`900` = 30 seconds), automatic full-video frame detection (off), camera frame
-stride (`1`), static camera (off), SAM chunk (`16` frames; hand batch is automatically
-twice the chunk size), SAM hand sampling (every frame, or every 2/4 frames with
-linear interpolation in between), manual person selection (on) and
-post-processing (off).
-Query batching and SAM compilation are off by default; optional
-[acceleration settings](web_demo.md#adjust-settings) apply at service startup.
+The Web/MCP defaults are seed `0`, CFG `1.0`, ODE steps `20`, automatic full-video
+range, static camera on, shot linking `auto`, VGGT interval `0` (automatic), SAM
+chunk `null` (automatic), SAM hand stride `1`, HaMeR off, contact correction on,
+correction preset `strong`, sole fit `0.6`, and automatic correction floor.
+Smoothing is `0.12` **frames** internally, corresponding to `0.04` on the UI
+slider (slider × 3). These are not the research settings of 40 steps, 1 frame
+smoothing and `normal` correction. Existing saved tasks retain their parameters.
+See [the multi-shot and camera guide](multishot.md) for the full workflow and
+the distinction between correction ground and preview ground. Per-run parameters
+are exposed by `flowhmr_get_parameter_schema`; CLI inference defaults below are
+separate. SAM compilation is off by default; attention `auto` uses query batches
+above 5,000 motion frames. Optional [acceleration settings](web_demo.md#adjust-settings)
+apply at service startup.
 
 ```bash
 python app.py --device cuda:0 --port 8080

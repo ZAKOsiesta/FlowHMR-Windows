@@ -1,0 +1,36 @@
+// Localize current and persisted recovery progress without rewriting old jobs.
+import { message as m } from './i18n.js';
+const fixed = new Map(Object.entries({
+  '等待恢复摄像机':'queued', '正在停止摄像机计算':'cancel_requested',
+  '摄像机已就绪':'ready', '摄像机计算已停止，人物动作已保留':'cancelled',
+  '摄像机恢复失败，可重试':'failed', '摄像机计算已中断':'failed',
+  '读取已完成的人物动作':'reading', '已复用任务的原始相机观测':'reuse_camera',
+  '已复用人物观测，动作保持不变':'reuse_observations', '估计画面重力方向':'gravity',
+  '采用人物长窗口与地面估计水平':'level_fallback',
+  '稳定摄像机并整理逐镜头说明':'stabilizing', '恢复多人场景的共同机位':'shared_recovery',
+  '多人加切镜暂不连接，已按原流程分别处理人物。':'multi_fallback',
+}));
+const counters = [
+  [/^摄像机整体尺度 · (\d+)\/(\d+)$/, 'scale_progress'],
+  [/^对齐原片机位 · (\d+)\/(\d+)$/, 'align_progress'],
+  [/^补算人物观测 · (\d+)\/(\d+) 帧$/, 'observation_progress'],
+  [/^复核人物可见性 · (\d+)\/(\d+) 个镜头$/, 'visibility_progress'],
+  [/^核对相邻画面 · (\d+)\/(\d+) 个镜头$/, 'tracking_progress'],
+  [/^镜头条件 · (\d+)\/(\d+)$/, 'condition_progress'],
+];
+export function multishotMessage(value) {
+  if (!value) return null;
+  if (value === '正在加载人物观测模型') return m('job.model_loading');
+  if (fixed.has(value)) return m(`camera.${fixed.get(value)}`);
+  for (const [pattern,key] of counters) {
+    const match=value.match(pattern);
+    if (match) return m(`camera.${key}`, {current:match[1],total:match[2]});
+  }
+  const linked=value.match(/^已自动连接 (\d+) 个镜头$/);
+  if (linked) return m('camera.linked', {count:linked[1]});
+  if (value.startsWith('画面重力不可用，采用人物与地面估计：')) return m('camera.level_fallback');
+  return null;
+}
+export function cameraStatusMessage(status) {
+  return multishotMessage(status.message) ?? m(`camera.${status.camera_state ?? 'none'}`);
+}

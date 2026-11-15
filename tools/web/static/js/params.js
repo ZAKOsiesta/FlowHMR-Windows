@@ -242,12 +242,9 @@ export function initParams(defaults, manualBatchDefault, hybridAvailable = false
         apply(preferencesForNewSource(remembered), null, remembered);
         return;
       }
-      // A manual floor belongs to the previous video.
-      correctionGround.value = "auto";
-      correctionHeight.value = 0;
-      cameraMode.value = defaultCamera;
-      syncCamera();
-      syncCorrection();
+      // Opening history must not become an implicit preference for a new upload.
+      // Explicit user preferences above still carry across videos.
+      apply(defaults || {});
     },
   };
 }

@@ -31,7 +31,7 @@ def main():
         result["errors"].append("请在 FlowHMR 右上角「运行环境」下载并启用推理环境。")
     if not args.models_only and result["runtime"]["ready"]:
         for name in ["torch", "torchvision", "numpy", "cv2", "flask", "yolox",
-                     "supervision", "flowhmr.pipeline.v2m_inference",
+                     "supervision", "scenedetect", "mcp", "flowhmr.pipeline.v2m_inference",
                      "flowhmr.utils.runtime_sam_features", "flowhmr.utils.runtime_vggt_camera"]:
             try:
                 importlib.import_module(name)

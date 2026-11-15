@@ -131,12 +131,45 @@ def build_tools(backend, exports):
         return Result({'job_id': job_id, 'scene_state': 'queued'})
 
     @register()
+    async def flowhmr_prepare_camera(job_id: JobID) -> Result:
+        """Queue paired camera recovery without changing completed motion. Returns immediately.
+
+        Reuses a ready result and deduplicates queued/running requests. Call this same tool
+        again after failed/cancelled to retry. Poll flowhmr_get_camera_status until ready.
+        Multi-person results require a ready shared scene first.
+        """
+        return Result({'job_id': job_id, **await backend.request('POST', f'/api/jobs/{job_id}/camera/prepare', json={})})
+
+    @register(True)
+    async def flowhmr_get_camera_status(job_id: JobID, include_report: bool = False) -> Result:
+        """Read independent camera state/progress/error. Optionally include the ready per-shot report.
+
+        A failed camera leaves the completed motion available. Confidence is not physical
+        calibration. ready is the completion signal; queued/running are not completion.
+        """
+        status=await backend.request('GET', f'/api/jobs/{job_id}/camera/status')
+        if include_report and status['camera_state']=='ready':
+            status['report']=await backend.request('GET', f'/api/jobs/{job_id}/camera/report')
+        return Result({'job_id':job_id,**status})
+
+    @register()
+    async def flowhmr_cancel_camera(job_id: JobID) -> Result:
+        """Request cancellation of camera recovery only; keep motion and exports intact.
+
+        Poll camera status afterwards. A completely saved result can win over a late cancel.
+        Retry cancelled/failed recovery with flowhmr_prepare_camera.
+        """
+        return Result({'job_id':job_id,**await backend.request('POST',f'/api/jobs/{job_id}/camera/cancel',json={})})
+
+    @register()
     async def flowhmr_export_motion(options: ExportOptions) -> Result:
         """Queue a motion export to a local absolute path. Poll flowhmr_get_export(export_id).
 
         Arguments are nested under options. Parent directory must exist. No overwrite by default.
         Multi-person VMD/VRMA require .zip. FBX templates require skeleton only and no reference pose.
         NPZ exports the complete result. Only status=done proves a file was successfully published.
+        include_camera=true produces a .zip with matching source-body motion and camera,
+        recovering the camera first if needed. It does not bake a selected preview character.
         """
         return Result(await exports.submit(options))
 

@@ -6,6 +6,8 @@ from pathlib import Path
 import tempfile
 import uuid
 from contextlib import nullcontext
+from zipfile import ZipFile, ZIP_DEFLATED, is_zipfile
+import shutil
 from datetime import datetime, timezone
 from .backend import fail, local_file
 
@@ -64,15 +66,18 @@ class Exports:
             fail('export_unavailable', 'FBX export is unavailable for this result.')
         if options.format == 'fbx' and (options.template_path or options.fbx_profile == 'maya_adv') and len(people) != 1:
             fail('invalid_people', 'This profile requires exactly one person.')
-        extension = 'zip' if options.format in ('vmd', 'vrma') and len(people) > 1 else options.format
+        extension = 'zip' if options.include_camera or (options.format in ('vmd', 'vrma') and len(people) > 1) else options.format
         path = Path(options.output_path)
         if not path.is_absolute() or str(path).startswith(('\\\\.\\', '\\\\?\\')):
             fail('invalid_path', 'output_path must be an absolute ordinary file path.')
-        if not path.parent.is_dir() or path.suffix.lower() != '.' + extension:
+        allowed = {'.'+extension}
+        if options.format in ('vmd','fbx') and not options.include_camera:allowed.add('.zip')
+        if not path.parent.is_dir() or path.suffix.lower() not in allowed:
             fail('invalid_path', f'Target parent must exist and extension must be .{extension}.')
         if path.is_symlink() or (path.exists() and not path.is_file()):
             fail('invalid_path', 'Target must be a regular file, not a directory or symlink.')
         path = path.parent.resolve() / path.name
+        extension=path.suffix[1:].lower()
         if path.exists() and not options.overwrite:
             fail('output_exists', 'Target exists. Choose another path or explicitly enable overwrite.')
         template = local_file(options.template_path, {'.fbx'}) if options.template_path else None
@@ -80,13 +85,60 @@ class Exports:
             fail('template_too_large', 'FBX templates must not exceed 128 MiB.')
         row = dict(export_id=uuid.uuid4().hex, job_id=options.job_id, status='queued',
                    path=str(path), format=options.format, container=extension, person_ids=people,
-                   created=datetime.now(timezone.utc).isoformat(), error=None)
+                   created=datetime.now(timezone.utc).isoformat(), error=None,include_camera=options.include_camera)
         self.save(row)
         await self.notify()
         task = asyncio.create_task(self.run(row, options, template))
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
         return self.get(row['export_id'])
+
+    async def prepare_camera(self,row):
+        status=await self.backend.request('POST',f"/api/jobs/{row['job_id']}/camera/prepare",json={})
+        deadline=asyncio.get_running_loop().time()+3600
+        while status['camera_state']!='ready':
+            if status['camera_state'] in ('failed','cancelled','none'):
+                fail('camera_'+status['camera_state'],status.get('error') or status.get('message') or 'Camera is unavailable.')
+            if asyncio.get_running_loop().time()>deadline:
+                fail('camera_wait_timeout','Camera is still running. Inspect its status before retrying export.')
+            row['phase']='waiting_for_camera';row['camera_state']=status['camera_state'];self.save(row)
+            await asyncio.sleep(.7)
+            status=await self.backend.request('GET',f"/api/jobs/{row['job_id']}/camera/status")
+        row['phase']='exporting';row['camera_state']='ready';self.save(row)
+
+    async def package(self,motion_file,options):
+        """Reuse the same motion/camera HTTP exporters as the GUI; never regenerate motion."""
+        with tempfile.TemporaryDirectory(prefix='.flowhmr-pair-',dir=Path(motion_file).parent) as temp:
+            root=Path(temp);paired=root/'result.zip'
+            def copy_members(output,source,prefix,raw_name):
+                if not raw_name.endswith('.npz') and is_zipfile(source):
+                    with ZipFile(source) as archive:
+                        for info in archive.infolist():
+                            if info.is_dir():continue
+                            name=info.filename.replace('\\','/')
+                            if name.startswith('/') or '..' in name.split('/') or ':' in name:
+                                raise ValueError('Invalid file name in export archive')
+                            with archive.open(info) as src,output.open(prefix+name,'w') as dst:shutil.copyfileobj(src,dst)
+                else:output.write(source,prefix+raw_name)
+            with ZipFile(paired,'w',ZIP_DEFLATED) as output:
+                copy_members(output,motion_file,'motion/' if options.include_camera else '',f'motion.{options.format}')
+                if options.include_camera:
+                    camera_path=root/'camera.zip'
+                    async with self.backend.client(timeout=1200) as client:
+                        async with client.stream('POST',f'/api/jobs/{options.job_id}/camera/export',json={'format':options.format}) as response:
+                            await self.backend.check(response)
+                            with camera_path.open('wb') as dst:
+                                async for block in response.aiter_bytes():dst.write(block)
+                    if not is_zipfile(camera_path):raise ValueError('Invalid camera export archive')
+                    copy_members(output,camera_path,'camera/','camera.zip')
+                    output.writestr('pairing.json',json.dumps(dict(job_id=options.job_id,format=options.format,
+                        world='paired_motion_y_up_metres',camera_transform=dict(scale=1,translation=[0,0,0]),
+                        target='source body; selected preview character offsets are not baked',
+                        motion_directory='motion',camera_directory='camera'),ensure_ascii=False,indent=2))
+                    output.writestr('READ_ME.txt','Motion and camera share source frame numbers and the source-body world.\n'
+                        'Load motion/ and camera/ together. See camera/export-report.json for format approximations.\n'
+                        'For a selected PMX character and its matching camera, use the desktop export dialog.\n')
+            os.replace(paired,motion_file)
 
     async def run(self, row, options, template):
         temporary = None
@@ -98,6 +150,8 @@ class Exports:
             row['temporary_path'] = temporary
             self.save(row)
             await self.notify()
+            if options.include_camera:
+                await self.prepare_camera(row)
             params = []
             if options.person_ids:
                 params.extend(('person', str(person)) for person in options.person_ids)
@@ -117,6 +171,11 @@ class Exports:
                                 size += len(block)
                         if not size:
                             raise ValueError('Backend returned an empty export')
+            if options.include_camera or path.suffix.lower()=='.zip':
+                await self.package(temporary,options)
+                size=Path(temporary).stat().st_size
+            elif is_zipfile(temporary) and options.format!='npz':
+                fail('export_requires_zip','This motion contains gaps or multiple files. Retry with a .zip output_path.')
             if options.overwrite:
                 os.replace(temporary, path)
             elif os.name == 'nt':

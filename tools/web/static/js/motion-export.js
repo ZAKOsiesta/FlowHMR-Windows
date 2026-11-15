@@ -2,6 +2,7 @@ import { $, el, personColor, show } from "./utils.js";
 import { appError, message as m, setText } from "./i18n.js";
 import * as api from "./api.js";
 import { placedCameraTransform } from './paired-camera.js';
+import { cameraStatusMessage } from './camera-messages.js';
 import { unzipSync, zipSync } from '../vendor/three/fbx/libs/fflate.module.js';
 
 const FORMAT_STORAGE = "flowhmr-export-format";
@@ -178,7 +179,7 @@ export function initMotionExport(getBodyVariant, viewer) {
       sync();
       try {
         await api.prepareCamera(id, operation.signal, (status) => {
-          if (dialog.open) setText($('pairedCameraHint'), status.message || m('export.camera_ready'));
+          if (dialog.open) setText($('pairedCameraHint'), cameraStatusMessage(status));
         });
         result.cameraState = 'ready';
         let files, transform = { scale: 1, translation: [0, 0, 0] };

@@ -1,5 +1,9 @@
 # Installation
 
+For the local multi-shot/camera product candidate, read [product validation](product-validation.md)
+for the tested runtime and dependency versions. This guide also covers upstream training
+setups; its historical CUDA examples are not the validation environment of the candidate.
+
 Run all commands from the FlowHMR-Windows repository root, not from `docs/`. For the portable app and its GPU runtimes, see the [Windows desktop guide](windows.md). See [resources.md](resources.md) for file locations and [params.md](params.md) for configuration options.
 
 ## Setups

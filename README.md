@@ -8,14 +8,16 @@
 
 **[下载 Windows 便携版](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest/download/FlowHMR-Windows.zip)** · [查看发布说明](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest) · [FlowHMR 论文](https://arxiv.org/abs/2610.03691)
 
-## v0.3.5 更新
+## v0.3.6 更新
 
-- **纯 CPU 推理（实验）。** Intel 和 AMD x64 处理器无需 GPU 即可使用固定机位或运动相机。此模式暂不支持 HaMeR 手指精修。
-- **新增 GPU 运行环境。** 精简 CUDA 推荐，按显卡匹配 AMD ROCm 下载，加入部分 AMD 核显、RX 5000 和 Intel Arc 的实验环境。符合条件的 AMD 核显可把 SAM 图像编码交给 CPU，降低显存开销。
-- **人物检测只扫描选定区间。** 更改起止帧后会重新检测，预览和多人对齐仍使用原素材帧号。
-- **修复系统代理下的角色选择。** PMX、VRM 和 FBX 文件选择后的请求直连本机，避免被系统代理拦截（[Issue #7](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/issues/7)）。
+- **自定义重定向与预设。** 在可拖动、可缩放的浮动面板里拾取 3D 骨骼。引导会从身体走到双手，默认开启自动镜像；重定向按目标身高和四肢长度调整。角色与预设均可保存，角色库和预设用缩略图浏览。
+- **按当前角色导出。** Mixamo 和 MetaHuman 不再要求在导出时重新选择模板文件。按角色导出会保留已保存的重定向和校正；Mixamo 仍可选通用骨架。兼容 PMX 支持 IK / FK，自动重心优先用「センター」，否则尝试「全ての親」。普通自定义 FBX 应用重定向后，可选「当前角色 FBX」，按原骨架导出并选择是否包含蒙皮。当前角色 FBX 每次导出一人，保留多人场景中的站位与入场时间。VRM 保留 GLB 和 VRMA 导出。
+- **通用 VMD 沿用角色校正。** 有已应用的角色时，通用骨架保留关节旋转、位移、根骨调整和脚部 IK／FK，仍使用标准 MMD 骨名。要保留某个角色的精确比例和鞋底贴合，选择按当前 PMX 角色导出。
+- **慢放更平滑。** 时间轴可设置并记住显示帧率，慢放时补算中间姿势；原视频同步和导出的动作时间不变。
+- **AMD Radeon RX 6000（实验中）。** Windows 11 的运行环境可按显卡架构匹配 ROCm。已核对安装包，完整动捕仍待实卡验证。
+- **MCP 兼容性。** 原有 19 个工具和后台导出参数保持兼容。支持切换已绑定控制骨的自定义 FBX／VRM 的 IK，并可查询实际设备后端。烘焙当前角色校正的导出在桌面完成。
 
-[本次发布说明](docs/release-windows.md) · [v0.3.4：低显存多人对齐修复](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/tag/windows-v0.3.4)
+[完整更新说明](docs/release-windows.md) · [上一版 v0.3.5](docs/release-windows-v0.3.5.md)
 
 ## 最低配置与支持设备
 
@@ -33,6 +35,7 @@
 | NVIDIA GeForce RTX 20 系列 | CUDA 12.1 | 实验中 |
 | NVIDIA GeForce GTX 10 系列 | CUDA 12.1 | 实验中 |
 | AMD Radeon RX 9000 / 7000 系列 | [ROCm](docs/amd-rocm.md) | 已验证 |
+| AMD Radeon RX 6000 系列 | [ROCm](docs/amd-rocm.md) | 实验中 |
 | AMD Radeon RX 5000 系列 | [ROCm](docs/amd-rocm.md) | 实验中 |
 | AMD Radeon 核显（含 740M / 760M / 780M 及部分 800M） | [ROCm](docs/amd-rocm.md) | 实验中（9950X 核显已验证；建议固定机位） |
 | Intel Arc A / B 系列、部分 Core Ultra Arc 核显 | [Intel XPU](docs/windows.md) | 实验中（GPU 仅负责 SAM 图像编码） |
@@ -46,8 +49,8 @@
 - **多人一起预览和导出。** 同一条视频可选中多个人；合并预览和 FBX 保留他们在原视频中的相对站位和入场时间。旧任务可从带缩略图的历史里继续查看。
 - **按素材调整动作。** 可调动作滤波、脚部接触修正和地面高度；需要更细的手指动作时，可开启 HaMeR 手指精修。相机默认用固定机位，镜头明显转向、俯仰或滚转时再用运动相机。
 - **在本机运行。** 程序按需安装推理环境和模型，开始生成时才加载模型；装好后可离线处理。支持简体中文、繁體中文、English、日本語、한국어、Русский 和 Français，重开程序会记住上次选的语言。
-- **动作导出。** 支持 FlowHMR、Mixamo、MetaHuman、Maya AdvancedSkeleton FBX，以及 MMD VMD、VRM Animation（VRMA）和 NPZ。FlowHMR 和 Mixamo FBX 可选蒙皮和第 **−1 帧**的 T Pose / A Pose。详见[导出与重定向](docs/retarget-export.md)。
-- **自定义角色。** 支持 PMX、VRM 0.x / 1.0 和带蒙皮的 Mixamo / MetaHuman FBX。多人可分别选择角色并记住骨骼调整。兼容的 PMX 支持原生 IK / FK 切换，按角色导出的 VMD 可保留脚部 IK。
+- **动作导出。** 支持 FlowHMR、Mixamo、MetaHuman、Maya AdvancedSkeleton FBX、MMD VMD、VRM Animation（VRMA）和 NPZ。普通自定义 FBX 可按角色原骨架和已保存的动作校正导出，可选蒙皮。自定义映射的 VRM 仍可导出带蒙皮的动画 GLB。FlowHMR 和通用 Mixamo FBX 可选蒙皮与第 **−1 帧**的 T Pose / A Pose。[导出与重定向](docs/retarget-export.md)
+- **自定义角色。** 支持 PMX、VRM 0.x / 1.0 和带蒙皮的 Mixamo / MetaHuman FBX。每个人可分配不同角色。可为新骨架映射关节、指定 IK 控制骨并调整旋转和平移，也可载入和管理已有预设。
 
 ## 示例视频
 

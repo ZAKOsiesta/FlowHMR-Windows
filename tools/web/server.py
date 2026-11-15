@@ -56,18 +56,19 @@ from flowhmr.model_files import (
     flowhmr_paths, missing_model_paths, resolve_model, smplh_reference,
 )
 from flowhmr import model_integrity
-from flowhmr.character_files import CharacterFiles, KEY_ENV as CHARACTER_KEY_ENV
-from flowhmr.character_library import CharacterLibrary
+from flowhmr.character_files import CharacterFiles, KEY_ENV as CHARACTER_KEY_ENV, MAX_MODEL_BYTES
+from flowhmr.character_library import CharacterLibrary, RetargetPresetError, THUMBNAIL_BYTES
 from flowhmr.model_sources import PUBLIC_ASSETS
 from flowhmr.model_import import ModelImporter, ModelImportError
 from flowhmr.model_inventory import model_inventory
 from flowhmr.model_downloads import ACTIVE_DOWNLOAD, DownloadError, ModelDownloads, missing_downloads
-from flowhmr.runtime_environments import RUNTIME, cuda_ordinal
-from flowhmr import runtime_rocm, runtime_xpu
+from flowhmr.device_support import DEVICE_HELP, DeviceError, backend_summary, plan_device, resolve_device
+from flowhmr.runtime_environments import RUNTIME
+from flowhmr import runtime_rocm
 from flowhmr.mcp.service import MCPService
 from flowhmr.mcp.contract import (Parameters as MCPParameters, ExportOptions as MCPExportOptions,
                                   SERVICE_KEY_HEADER, TOOL_NAMES, parameter_defaults, single_result_person_id)
-from flowhmr.mcp.characters import BONES, PosePatch, empty_pose, import_character
+from flowhmr.mcp.characters import BONES, PosePatch, can_request_ik, empty_pose, import_character
 from flowhmr.mcp.activity import Activity
 from flowhmr.mcp.events import UIEvents
 
@@ -294,17 +295,7 @@ def checked_model_paths(args, body_reference=None):
 def _check_cu121_weights(paths):
     # Official cu121 uses PyTorch 2.5.1, whose weights_only loader cannot
     # safely open unknown files (CVE-2025-32434).
-    unverified = []
-    for path in paths:
-        if path.suffix.lower() not in (".pt", ".pth", ".ckpt"):
-            continue
-        asset = model_integrity.pinned_asset(model_integrity.relative_name(path))
-        try:
-            valid = asset is not None and asset.sha256 is not None and model_integrity.digest(path) == asset.sha256
-        except OSError:
-            valid = False
-        if not valid:
-            unverified.append(asset.relative if asset else path.name)
+    unverified = model_integrity.unverified_torch_weights(paths)
     if unverified:
         listing = "\n".join(unverified)
         raise UserMessage("CUDA 12.1 只能使用已通过校验的官方权重。请在「模型」重新安装对应文件：\n" + listing,
@@ -312,37 +303,11 @@ def _check_cu121_weights(paths):
 
 
 def resolve_inference_device(requested):
-    import torch
-
-    device = torch.device(requested)
-    if device.type == "xpu":
-        try:
-            index = runtime_xpu.xpu_ordinal(torch, ordinal=device.index)
-            torch.xpu.set_device(index)
-        except (AttributeError, RuntimeError) as error:
-            raise UserMessage("Intel XPU 需要 Windows 11 和受支持的 Intel Arc 显卡。请检查驱动。",
-                              "runtime_xpu_no_device") from error
-        return torch.device("xpu", index)
-    if device.type == "cuda":
-        if sys.platform == "win32" and torch.version.hip:
-            profile = runtime_rocm.PROFILES.get(RUNTIME.active)
-            try:
-                index = runtime_rocm.gpu_ordinal(torch, profile.arch if profile else None, ordinal=device.index)
-            except RuntimeError as error:
-                if profile:
-                    raise UserMessage(f"当前 ROCm 环境需要可用的 {profile.arch} 显卡。",
-                                      "runtime_rocm_gpu_required", arch=profile.arch) from error
-                raise UserMessage("没有可用于当前 ROCm 环境的显卡。请检查驱动和显卡设置。",
-                                  "runtime_rocm_no_device") from error
-            device = torch.device("cuda", index)
-        elif variant := RUNTIME.cuda_variant():
-            try:
-                device = torch.device("cuda", cuda_ordinal(torch, variant, device.index))
-            except RuntimeError as error:
-                raise UserMessage("此版本不适用于可用的 NVIDIA 显卡。", "runtime_cuda_arch_mismatch") from error
-        torch.cuda.set_device(device.index if device.index is not None else 0)
-        runtime_rocm.configure_windows_hip(torch, device=device, attention=True)
-    return device
+    source = getattr(ARGS, "device_request", requested) if requested == getattr(ARGS, "device", None) else requested
+    try:
+        return resolve_device(plan_device(source, RUNTIME), RUNTIME)
+    except DeviceError as error:
+        raise UserMessage(str(error), error.code, **error.params) from error
 
 
 def load_engine(args, body_reference, paths, *, sam_backend="gpu"):
@@ -1496,11 +1461,15 @@ def api_mcp_character(job_id):
             if set(value) - {'person_id', 'character_id', 'patch'}:
                 raise ValueError('Unknown pose setting')
             patch = PosePatch.model_validate(value.get('patch'))
-            if patch.ik_mode == 'ik':
-                kind = next((item['kind'] for item in catalog['models'] if item['id'] == value.get('character_id')), None)
-                if kind != 'pmx':
-                    raise ValueError('Native IK mode requires a compatible PMX character')
-            CHARACTER_LIBRARY.update_pose(actor, slot, value.get('character_id'), patch.patch)
+            character_id = value.get('character_id')
+            kind = next((item['kind'] for item in catalog['models'] if item['id'] == character_id), None)
+
+            def apply_patch(current):
+                if patch.ik_mode == 'ik' and not can_request_ik(kind, current):
+                    raise ValueError('IK requires a PMX rig with native IK or a character with saved IK controllers')
+                return patch.patch(current)
+
+            CHARACTER_LIBRARY.update_pose(actor, slot, character_id, apply_patch)
         catalog = CHARACTER_LIBRARY.snapshot([actor])
         record = catalog['actors'].get(actor)
         inherited = record is None
@@ -1520,10 +1489,10 @@ def api_mcp_character(job_id):
         return api_error('character_settings_failed', str(error), 400)
 
 
-def check_character_library_request():
+def check_character_library_request(max_bytes=16384):
     if not local_model_request() or request.headers.get("Sec-Fetch-Site") == "cross-site":
         abort(403)
-    if request.content_length and request.content_length > 16384:
+    if request.content_length is not None and request.content_length > max_bytes:
         abort(413)
 
 
@@ -1554,6 +1523,33 @@ def api_character_library():
         return api_error("character_library_read", "无法读取本地角色库。", 500)
 
 
+def _character_thumbnail_response(read, write, identifier):
+    check_character_library_request(THUMBNAIL_BYTES)
+    try:
+        if request.method in ("GET", "HEAD"):
+            response = Response(read(identifier), mimetype="image/png")
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            return response
+        if request.mimetype != "image/png":
+            abort(415)
+        # Read at most one byte past the cap, including chunked requests.
+        data = request.stream.read(THUMBNAIL_BYTES + 1)
+        if len(data) > THUMBNAIL_BYTES:
+            abort(413)
+        write(identifier, data)
+        return jsonify(ok=True)
+    except FileNotFoundError:
+        abort(404)
+    except (OSError, ValueError):
+        return api_error("character_library_thumbnail", "无法保存角色缩略图。", 400)
+
+
+@app.route("/api/character-library/<identifier>/thumbnail", methods=["GET", "POST"])
+def api_character_thumbnail(identifier):
+    return _character_thumbnail_response(CHARACTER_LIBRARY.read_thumbnail, CHARACTER_LIBRARY.write_thumbnail, identifier)
+
+
 @app.post("/api/character-library/<identifier>/open")
 def api_open_character_library_entry(identifier):
     check_character_library_request()
@@ -1561,6 +1557,19 @@ def api_open_character_library_entry(identifier):
         return jsonify(CHARACTER_LIBRARY.open(identifier, CHARACTER_FILES))
     except (OSError, ValueError, RuntimeError):
         return api_error("character_library_missing", "此角色的文件无法读取，请重新导入。", 404)
+
+
+@app.post("/api/character-library/lookup")
+def api_lookup_character():
+    check_character_library_request()
+    value = request.get_json(silent=True)
+    ticket = value.get("ticket") if isinstance(value, dict) else None
+    if not isinstance(ticket, str) or not 1 <= len(ticket) <= 64:
+        abort(400)
+    try:
+        return jsonify(CHARACTER_LIBRARY.lookup(CHARACTER_FILES, ticket))
+    except (OSError, ValueError, RuntimeError):
+        return api_error("character_library_save", "无法识别模型和贴图，请重新选择文件。", 400)
 
 
 @app.delete("/api/character-library/<identifier>")
@@ -1578,7 +1587,7 @@ def api_remove_character_library_entry(identifier):
 
 @app.put("/api/character-library/actors/<actor_id>")
 def api_set_actor_character(actor_id):
-    check_character_library_request()
+    check_character_library_request(128 << 10)
     job = get_job(actor_id)
     if job["status"] != "done":
         abort(409)
@@ -1593,10 +1602,55 @@ def api_set_actor_character(actor_id):
     if identifier is None and not value["select"]:
         abort(400)
     try:
-        CHARACTER_LIBRARY.set_actor(actor_id, str(number) if number is not None else "single",
-                                    identifier, value.get("offsets"), select=value["select"])
+        saved = CHARACTER_LIBRARY.set_actor(actor_id, str(number) if number is not None else "single",
+                                            identifier, value.get("offsets"), select=value["select"],
+                                            retarget_preset=value.get("retarget_preset"),
+                                            remember=value.get("remember") is True)
+    except RetargetPresetError:
+        return api_error("character_library_settings", "无法保存角色设置。", 400)
     except FileNotFoundError:
         return api_error("character_library_missing", "此角色的文件无法读取，请重新导入。", 404)
+    except (OSError, ValueError, RuntimeError):
+        return api_error("character_library_settings", "无法保存角色设置。", 500)
+    return jsonify(ok=True, **(saved or {}))
+
+
+@app.put("/api/character-library/retarget-presets")
+def api_save_retarget_preset():
+    check_character_library_request(128 << 10)
+    try:
+        return jsonify(CHARACTER_LIBRARY.set_retarget_preset(request.get_json(silent=True)))
+    except (OSError, ValueError, RuntimeError):
+        return api_error("character_library_settings", "无法保存角色设置。", 400)
+
+
+@app.delete("/api/character-library/retarget-presets/<identifier>")
+def api_delete_retarget_preset(identifier):
+    check_character_library_request()
+    try:
+        CHARACTER_LIBRARY.remove_retarget_preset(identifier)
+    except FileNotFoundError:
+        abort(404)
+    except (OSError, ValueError, RuntimeError):
+        return api_error("character_library_settings", "无法保存角色设置。", 500)
+    return jsonify(ok=True)
+
+
+@app.route("/api/character-library/retarget-presets/<identifier>/thumbnail", methods=["GET", "POST"])
+def api_retarget_preset_thumbnail(identifier):
+    return _character_thumbnail_response(
+        CHARACTER_LIBRARY.read_retarget_thumbnail, CHARACTER_LIBRARY.write_retarget_thumbnail, identifier)
+
+
+@app.route("/api/character-library/retarget-presets/builtin/<profile>", methods=["PUT", "DELETE"])
+def api_builtin_retarget_preset(profile):
+    check_character_library_request(128 << 10)
+    try:
+        if request.method == "PUT":
+            return jsonify(CHARACTER_LIBRARY.set_builtin_retarget_preset(profile, request.get_json(silent=True)))
+        CHARACTER_LIBRARY.reset_builtin_retarget_preset(profile)
+    except RetargetPresetError:
+        return api_error("character_library_settings", "无法保存角色设置。", 400)
     except (OSError, ValueError, RuntimeError):
         return api_error("character_library_settings", "无法保存角色设置。", 500)
     return jsonify(ok=True)
@@ -1670,6 +1724,7 @@ def api_info():
         inventory["import"] = MODEL_IMPORTER.status()
     return jsonify({
         "model": flowhmr_paths(ARGS.ckpt, config)[0].name, "device": ARGS.device,
+        "device_backend": backend_summary(plan_device(getattr(ARGS, "device_request", ARGS.device), RUNTIME), RUNTIME, ENGINE),
         "models_loaded": ENGINE is not None,
         "model_files": inventory,
         "runtime": RUNTIME.summary(),
@@ -2350,6 +2405,10 @@ def api_fbx(job_id):
     prefix = f"fbx_scene_v5_{signature}" if chosen is not None else f"fbx_mmr_v{revision}"
     if profile != "flowhmr":
         revision = 3 if profile in ("metahuman", "mixamo", "maya_adv") else 2
+        if template_kind == "mixamo":
+            revision += 1  # Invalidate pre-fix Mixamo and iClone template exports.
+            if profile == "mixamo":
+                revision += 1  # Separate from existing generic Mixamo FBX.
         prefix = f"fbx_{profile}_v{revision}_{signature or 'single'}"
     pose_tag = f"_{first_pose}_pose" if first_pose != "none" else ""
     cache_name = f"{prefix}_{file_stamp(source)}_{suffix}{tag}{pose_tag}"
@@ -2404,6 +2463,128 @@ def api_fbx(job_id):
     if bundled is not None:
         return send_file(bundled, mimetype='application/zip', as_attachment=True, download_name=name + '.zip')
     return send_file(path, mimetype="application/octet-stream", as_attachment=True, download_name=name, conditional=True)
+
+
+@app.post("/api/jobs/<job_id>/target-fbx")
+def api_target_fbx(job_id):
+    if not local_model_request():
+        return api_error("target_fbx_local_only", "请在本机 FlowHMR 导出角色动作。", 403)
+    job, source, available = motion_export_source(job_id)
+    if find_spec("fbx") is None:
+        abort(404)
+    profile = request.args.get("profile")
+    mode = request.args.get("mesh", "0")
+    if profile not in ("mixamo", "metahuman", "retarget_fbx") or mode not in ("0", "1") or (mode == "1" and profile == "metahuman"):
+        return api_error("fbx_profile", "请选择有效的 FBX 骨架预设。", 400)
+    request.max_content_length = MAX_MODEL_BYTES + (64 << 20) + (1 << 20)
+    if request.content_length and request.content_length > request.max_content_length:
+        abort(413)
+    try:
+        chosen, _ = select_export_people(available)
+        if chosen is not None and len(chosen) != 1:
+            code = "target_fbx_one_character" if profile == "retarget_fbx" else f"{profile}_export_options"
+            raise UserMessage("每次只导出一个目标角色。", code)
+    except UserMessage as error:
+        return api_error(error.code, str(error), 400, **error.params)
+    from flowhmr.core.export.target_fbx import (
+        AmbiguousFbxPath, MAX_TARGET_TRACKS, MAX_TARGET_VALUES, TARGET_WIDTH, write_target_fbx,
+    )
+
+    result = None
+    try:
+        with np.load(source, allow_pickle=False) as data:
+            fps = float(data.get("mocap_framerate", 30))
+            person = chosen[0] if chosen else None
+            frames = len(data[f"trans_{person['person']}"] if person else data["trans"])
+            start = person["start"] if person else 0
+            valid_frames = None
+            if person is None and 'valid_frames' in data:
+                from flowhmr.multishot.timeline import validity, held_indices
+                valid_frames = validity(data['valid_frames'], frames)
+                start = int(data['source_frames'][0]) if 'source_frames' in data else int(job.get('track_range', [0])[0])
+                held = held_indices(valid_frames)
+        if not math.isfinite(fps) or not 0 < fps <= 240 or frames < 1:
+            raise ValueError("Invalid motion timeline")
+        tracks, samples = request.files.get("tracks"), request.files.get("samples")
+        if tracks is None or samples is None:
+            raise ValueError("The baked FBX request is incomplete")
+        paths_raw = tracks.stream.read((512 << 10) + 1)
+        if len(paths_raw) > 512 << 10:
+            raise ValueError("The FBX bone paths are too long")
+        paths = json.loads(paths_raw)
+        if (not isinstance(paths, list) or not 0 < len(paths) <= MAX_TARGET_TRACKS
+                or any(not isinstance(p, list) or not 0 < len(p) <= 128 or any(
+                    not isinstance(part, str) or len(part) > 512 or "\0" in part for part in p) for p in paths)
+                or len({tuple(p) for p in paths}) != len(paths)):
+            raise ValueError("Invalid FBX bone paths")
+        count = len(paths) * frames * TARGET_WIDTH
+        if count > MAX_TARGET_VALUES:
+            return api_error("target_fbx_limit", "动作或骨架太大，请缩短片段后再导出。", 413)
+        raw = samples.stream.read(4 * count + 1)
+        if len(raw) != 4 * count:
+            raise ValueError("The baked FBX does not match the job's frame count")
+        values = np.frombuffer(raw, dtype="<f4").reshape(len(paths), frames, TARGET_WIDTH)
+        if (not np.isfinite(values).all() or
+                not np.allclose(np.linalg.norm(values[..., 3:7], axis=-1), 1, atol=1e-3)):
+            raise ValueError("The baked FBX contains invalid transforms")
+        if valid_frames is not None:
+            values = values[:, held]
+        character_id = request.form.get("character")
+        upload = request.files.get("character_file")
+        if bool(character_id) == bool(upload):
+            raise ValueError("An applied FBX character is required")
+        exports = Path(source).parent / "exports"
+        exports.mkdir(exist_ok=True)
+        # Named paths are validated against the FBX itself. For a library
+        # character, resolve a fresh local file ticket; never accept a path.
+        with FBX_EXPORT_LOCK, tempfile.TemporaryDirectory(dir=exports, prefix=".retarget-") as scratch:
+            if character_id:
+                if not re.fullmatch(r"[0-9a-f]{64}", character_id):
+                    raise ValueError("Invalid character library ID")
+                ticket = CHARACTER_LIBRARY.open(character_id, CHARACTER_FILES)
+                target = CHARACTER_FILES.resource(ticket["ticket"])
+                if target is None or target.suffix.lower() != ".fbx":
+                    raise ValueError("The applied FBX character is no longer available")
+            else:
+                if not (upload.filename or "").lower().endswith(".fbx"):
+                    raise ValueError("The applied character is not an FBX")
+                target = Path(scratch) / "character.fbx"
+                size = 0
+                with target.open("wb") as saved:
+                    for block in iter(lambda: upload.stream.read(1 << 20), b""):
+                        size += len(block)
+                        if size > MAX_MODEL_BYTES:
+                            abort(413)
+                        saved.write(block)
+                if not size:
+                    raise ValueError("The applied FBX file is empty")
+            output = Path(scratch) / "motion.fbx"
+            write_target_fbx(target, output, paths, values, fps, start, profile, with_skin=mode == "1")
+            from flowhmr.multishot.exports import motion_report_bundle
+            suffix = 'skin' if mode == '1' else 'skeleton'
+            motion_name = f'{export_stem(job)}_{profile}_{suffix}.fbx'
+            bundled = motion_report_bundle(output, source, motion_name, start) if person is None else None
+            if bundled is not None:
+                return send_file(bundled, mimetype='application/zip', as_attachment=True,
+                                 download_name=motion_name + '.zip')
+            result = tempfile.TemporaryFile(mode="w+b")
+            with output.open("rb") as stream:
+                shutil.copyfileobj(stream, result)
+            length = result.tell()
+            result.seek(0)
+    except AmbiguousFbxPath as error:
+        return api_error("target_fbx_ambiguous_path", "同一父骨下有重名节点，无法安全导出。", 422, path=str(error)[:300])
+    except (ValueError, KeyError, BadZipFile, OSError, RuntimeError) as error:
+        if result is not None:
+            result.close()
+        app.logger.exception("Target FBX export failed for job %s", job_id)
+        return api_error("target_fbx_failed", "无法按当前角色导出。", 422, detail=str(error)[:300])
+    stem = export_stem(job) if not chosen else f"{os.path.splitext(job['filename'])[0]}_person{person['person']}"
+    suffix = "skin" if mode == "1" else "skeleton"
+    response = send_file(result, mimetype="application/octet-stream", as_attachment=True,
+                         download_name=f"{stem}_{profile}_{suffix}.fbx")
+    response.content_length = length
+    return response
 
 
 def write_humanoid_motion(source, path, chosen, format_name, export_person):
@@ -2652,6 +2833,26 @@ def api_result(job_id, kind):
             return api_error("body_variant", str(exc), 400, variant=body)
     if not os.path.exists(path):
         abort(404)
+    if kind == 'meta':
+        from flowhmr.multishot.timeline import preview_shot_ids
+        with open(path, encoding='utf-8') as stream:
+            meta = json.load(stream)
+        shot_ids = preview_shot_ids(meta, job)
+        if shot_ids is None:
+            # Older accepted jobs can have a compact report without tracks.
+            # Their saved camera still carries the original cut timeline.
+            saved_camera = Path(job_dir(job_id)) / 'camera/camera.npz'
+            if saved_camera.is_file():
+                try:
+                    with np.load(saved_camera, allow_pickle=False) as data:
+                        if (int(data['track_start']) == int(meta.get('track_start', 0)) and
+                                len(data['shot_ids']) == meta['num_frames']):
+                            shot_ids = data['shot_ids'].tolist()
+                except (OSError, ValueError, KeyError, BadZipFile):
+                    pass  # Camera recovery failures must not disable the body preview.
+        if shot_ids is not None:
+            meta['shot_ids'] = shot_ids
+        return jsonify(meta)
     as_attachment = kind == "npz"
     name = f"{export_stem(job)}_flowhmr.{kind}" if as_attachment else None
     return send_file(path, mimetype=mime, as_attachment=as_attachment,
@@ -2720,12 +2921,17 @@ def parse_args():
     p.add_argument("--model_cfg", default=None)
     p.add_argument("--host", default="0.0.0.0")
     p.add_argument("--port", type=int, default=8080)
-    p.add_argument("--device", default=RUNTIME.default_device())
+    p.add_argument("--device", default="auto", help=DEVICE_HELP)
     p.add_argument("--sam-chunk-default", type=int, default=16, help="Initial value in the manual batch field")
     p.add_argument("--work_dir", default=os.path.join(REPO_ROOT, "output", "web_jobs"))
     args = p.parse_args()
     if args.sam_chunk_default < 1:
         p.error("--sam-chunk-default must be a positive integer")
+    args.device_request = args.device
+    try:
+        args.device = plan_device(args.device_request, RUNTIME).device
+    except ValueError as error:
+        p.error(str(error))
     return args
 
 

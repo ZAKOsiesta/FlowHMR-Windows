@@ -16,12 +16,12 @@ import shutil
 import sys
 import time
 
-import torch
-
 REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, REPO_ROOT)
 
 from flowhmr.model_files import core_model_paths, missing_model_paths
+from flowhmr.device_support import DEVICE_HELP, DeviceError, plan_device, resolve_device
+from flowhmr.runtime_environments import RUNTIME
 
 OUTPUT_ROOT = os.path.join(REPO_ROOT, "output")
 VIDEO_EXTS = (".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v")
@@ -87,7 +87,7 @@ def parse_args():
     p.add_argument("--ckpt", help="FlowHMR checkpoint (default: models/flowhmr_latest/flowhmr_latest.ckpt)")
     p.add_argument("--model_cfg", default=None,
                    help="model config yaml (default: config.yml next to the ckpt)")
-    p.add_argument("--device", default="cuda")
+    p.add_argument("--device", default="auto", help=DEVICE_HELP)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--cfg_scale", type=float, default=1.0)
     p.add_argument("--steps", type=int, default=None,
@@ -115,14 +115,26 @@ def parse_args():
 
 def main():
     args = parse_args()
+    RUNTIME.configure_process()
+    if not RUNTIME.summary()["ready"]:
+        sys.exit("Install and enable an inference runtime in the FlowHMR desktop app first.")
+    try:
+        args.device = str(resolve_device(plan_device(args.device, RUNTIME), RUNTIME))
+    except (DeviceError, ValueError) as error:
+        sys.exit(str(error))
+    print("Inference device:", args.device)
     videos = collect_videos(args.videos)
     ckpt, model_cfg = check_files(args.ckpt, args.model_cfg)
     tag = os.path.splitext(os.path.basename(ckpt))[0]
     if args.seed != 0:
         tag += f"_seed{args.seed}"
 
-    if args.device.startswith("cuda:"):
-        torch.cuda.set_device(args.device)  # YOLOX builds its grids on the current device
+    if RUNTIME.cuda_variant() == "cu121":
+        # The desktop importer also guards official weights on PyTorch 2.5.1.
+        from flowhmr.model_integrity import unverified_torch_weights
+
+        if invalid := unverified_torch_weights(core_model_paths(ckpt, model_cfg)):
+            sys.exit("CUDA 12.1 requires verified official weights: " + ", ".join(invalid))
     os.chdir(REPO_ROOT)  # body-model / asset paths are repo-relative
 
     from flowhmr.pipeline.v2m_inference import V2MInferenceEngine
@@ -152,5 +164,7 @@ def main():
     sys.exit(0 if n_ok == len(results) else 1)
 
 
-if __name__ == "__main__":
+if __name__ == "__mp_main__":
+    RUNTIME.configure_process()
+elif __name__ == "__main__":
     main()

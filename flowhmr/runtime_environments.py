@@ -281,8 +281,9 @@ class RuntimeEnvironments:
         cards = {card["capability"]: card for card in amd}
         no_nvidia = bool(amd or intel) and not nvidia
         preferred_amd = next((profile.arch for profile in rocm.PROFILES.values()
-                              if not profile.integrated and profile.arch in cards and profile.arch not in rocm.RDNA1_ARCHES),
-                             next((arch for arch in cards if arch not in rocm.RDNA1_ARCHES), None))
+                              if not profile.integrated and profile.arch in cards
+                              and profile.arch not in rocm.EXPERIMENTAL_DISCRETE_ARCHES),
+                             next((arch for arch in cards if arch not in rocm.EXPERIMENTAL_DISCRETE_ARCHES), None))
         suggested_cuda = recommended_cuda(nvidia)
         options = []
         if self.system:
@@ -312,11 +313,11 @@ class RuntimeEnvironments:
             for profile in rocm.PROFILES.values():
                 name = profile.id
                 card, installed = cards.get(profile.arch), self.installed(name) is not None
-                rdna1 = profile.arch in rocm.RDNA1_ARCHES
+                experimental = profile.arch in rocm.EXPERIMENTAL_DISCRETE_ARCHES
                 detail_code = ("runtime_rocm_igpu" if profile.integrated else
-                               "runtime_rocm_rdna1" if rdna1 else "runtime_rocm_experimental")
+                               "runtime_rocm_rdna1" if experimental else "runtime_rocm_experimental")
                 detail = ("AMD 核显实验支持 · 与系统共享内存，建议先用短片测试。" if profile.integrated else
-                          "实验支持 · Windows 11 · 使用该型号的 AMD 驱动，尚待实机验证。" if rdna1 else
+                          "实验支持 · Windows 11 · 使用该型号的 AMD 驱动，尚待实机验证。" if experimental else
                           f"实验支持 · Windows 11 / {profile.arch} · 建议 AMD 驱动 {rocm.DRIVER} 或更新。")
                 options.append({"id": name, "label": runtime_label(name), "installed": installed,
                                 "compatible": card is not None, "device": card["name"] if card else None,

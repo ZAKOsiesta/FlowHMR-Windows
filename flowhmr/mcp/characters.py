@@ -15,6 +15,29 @@ Rotation = Annotated[list[Angle], Field(min_length=3, max_length=3)]
 Translation = Annotated[list[Distance], Field(min_length=3, max_length=3)]
 
 
+def can_request_ik(kind, pose):
+    # A PMX can have native controllers without a hand-authored mapping. The
+    # viewport checks the real rig and falls back to FK if those are absent.
+    if kind == 'pmx':
+        return True
+    if kind not in ('fbx', 'vrm'):
+        return False
+    profile = pose.get('retarget')
+    if not isinstance(profile, dict):
+        return False
+    # Other rigs can use controller bones explicitly assigned in Retarget.
+    mapping, controllers = profile.get('map'), profile.get('ik')
+    if not isinstance(mapping, list) or len(mapping) != 52 or not isinstance(controllers, dict):
+        return False
+    chains = {'leftFoot': (1, 4, 7), 'rightFoot': (2, 5, 8),
+              'leftHand': (16, 18, 20), 'rightHand': (17, 19, 21)}
+    valid = lambda index: type(index) is int and 0 <= index < 65536
+    return any(valid(controller) and controller not in mapping and
+               all(valid(mapping[joint]) for joint in chain)
+               for name, chain in chains.items()
+               if (controller := controllers.get(name)) is not None)
+
+
 class PosePatch(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True, allow_inf_nan=False)
     rotations: dict[BoneID, Rotation] = Field(default_factory=dict)

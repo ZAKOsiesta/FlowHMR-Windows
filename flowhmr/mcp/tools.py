@@ -49,6 +49,7 @@ def build_tools(backend, exports):
         """Check backend, runtime, model readiness and default generation parameters."""
         info = await backend.request('GET', '/api/info')
         return Result({'backend_ready': True, 'device': info['device'], 'runtime': info['runtime'],
+                       'device_backend': info.get('device_backend'),
                        'models_loaded': info['models_loaded'], 'defaults': parameter_defaults(info['defaults']),
                        'model_files': info['model_files']['items']})
 
@@ -167,6 +168,7 @@ def build_tools(backend, exports):
 
         Arguments are nested under options. Parent directory must exist. No overwrite by default.
         Multi-person VMD/VRMA require .zip. FBX templates require skeleton only and no reference pose.
+        Exports are independent of the viewer and don't bake its selected character or settings.
         NPZ exports the complete result. Only status=done proves a file was successfully published.
         include_camera=true produces a .zip with matching source-body motion and camera,
         recovering the camera first if needed. It does not bake a selected preview character.
@@ -224,7 +226,8 @@ def build_tools(backend, exports):
         Query flowhmr_get_character_pose first for character_id and canonical bone IDs 0-36.
         Rotations: XYZ degrees [-180,180]; root translation: metres [-5,5]. Zero vectors reset controls.
         Finger controls 22-36 affect both hands. mirror is an editor preference, not automatic bilateral editing.
-        IK applies only to PMX rigs that support native IK. Source animation and generic exports are unchanged.
+        IK applies to PMX rigs with native IK and FBX/VRM rigs with saved IK controllers.
+        Source animation and headless MCP exports are unchanged.
         """
         return Result(await backend.request('PATCH', f'/api/mcp/jobs/{job_id}/character',
             json={'person_id': person_id, 'character_id': character_id,

@@ -2,6 +2,20 @@
 import numpy as np
 
 
+def preview_shot_ids(meta, job):
+    """Expose source-indexed cut boundaries without changing cached geometry."""
+    tracks = (job.get('shot_linking_report') or {}).get('tracks', [])
+    if not tracks:
+        return None
+    first, count = int(meta.get('track_start', 0)), int(meta['num_frames'])
+    ids = np.full(count, -1, dtype=np.int32)
+    for shot in tracks:
+        a, b = max(0, int(shot['start'])-first), min(count, int(shot['end'])-first)
+        if a < b:
+            ids[a:b] = int(shot['id'])
+    return ids.tolist()
+
+
 def validity(values, frames):
     if values is None:
         return np.ones(frames, dtype=bool)

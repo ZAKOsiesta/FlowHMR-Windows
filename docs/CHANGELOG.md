@@ -2,6 +2,17 @@
 
 Notable changes to FlowHMR.
 
+## Windows v0.3.6
+
+- Add a floating 3D retargeting editor with guided body and finger mapping, automatic mirroring, limb proportion matching, and reusable presets.
+- Show character and preset thumbnails. Preserve each character's own settings and provide editable built-in presets.
+- Export to an applied Mixamo or MetaHuman character without selecting another FBX. Export custom and recognized FBX characters on their original skeletons with baked corrections and optional skin, one person at a time with scene placement and entry time preserved. Keep generic Mixamo export and animated GLB for custom-mapped VRM rigs.
+- Let compatible PMX rigs switch between native IK and FK. Prefer MMD Center, then All Parent, when selecting a root automatically.
+- Keep the applied character's joint and root corrections and foot IK/FK when exporting a generic VMD under standard MMD bone names.
+- Interpolate slow preview playback and remember the timeline display rate without changing export timing. Fix FBX foot alignment and VRM spring-bone collider cloning.
+- Add experimental Windows ROCm packages for Radeon RX 6000. Keep inference runtime initialization deferred until a job starts.
+- Keep the MCP tool and background export contracts compatible, allow IK switches on custom FBX/VRM rigs with mapped controllers, and report the active device backend.
+
 ## Windows v0.3.5
 
 - Add experimental CPU-only inference and Intel XPU image encoding. Recommend CUDA 12.8 for RTX 50 and CUDA 12.1 for RTX 20, 30, and 40, and expand ROCm runtime selection to more Radeon devices.

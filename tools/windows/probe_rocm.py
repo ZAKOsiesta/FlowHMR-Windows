@@ -51,7 +51,7 @@ def main():
     boxes = torch.tensor([[0., 0., 10., 10.], [1., 1., 9., 9.]], device=device)
     scores = torch.tensor([0.9, 0.8], device=device)
     assert torchvision.ops.nms(boxes, scores, 0.5).tolist() == [0]
-    if profile.arch in rocm.RDNA1_ARCHES:
+    if profile.arch in rocm.EXPERIMENTAL_DISCRETE_ARCHES:
         indices = torch.tensor([[0, 1], [0, 1]], device=device)
         values = torch.tensor([2., 3.], device=device)
         dense = torch.sparse_coo_tensor(indices, values, (2, 2)).to_dense()

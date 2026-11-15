@@ -12,6 +12,14 @@ for (const [language, catalog] of Object.entries(catalogs)) {
     assert.deepEqual(placeholders(catalog[key]), placeholders(canonical[key]), `${language}: ${key}`);
   }
 }
+// P4 passed the key-count check while these 76 messages were still English.
+const translated = ['camera.details','camera.recovery','camera.confidence_hint','camera.shared',
+  'camera.label_trusted','camera.label_fast_supported','camera.label_clamped','camera.label_fixed_center',
+  'camera.label_low_observation','camera.label_short_shot','camera.label_gravity_fallback','camera.label_failed',
+  'camera.label_no_observation','settings.shot_linking','settings.shot_linking_auto','settings.shot_linking_hint',
+  'progress.shots_linked','progress.shots_multiple','server.param_shot_linking','camera.custom_scale_unsupported'];
+for (const language of ['ja','ko','fr','ru']) for (const key of translated)
+  assert.notEqual(catalogs[language][key], catalogs.en[key], `${language}: untranslated ${key}`);
 for (const state of ['none','queued','running','cancel_requested','ready','cancelled','failed']) {
   assert.ok(canonical[cameraStatusMessage({camera_state:state}).key], state);
 }

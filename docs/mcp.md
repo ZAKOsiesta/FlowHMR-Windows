@@ -31,7 +31,7 @@ MCP 创建的任务会显示在桌面任务历史中。队列、任务进度、�
 
 | 工具 | 用途 |
 | --- | --- |
-| `flowhmr_get_status` | 查询后端、运行环境和模型状态 |
+| `flowhmr_get_status` | 查询后端、运行环境和模型状态；`device_backend` 区分实际 CUDA、ROCm、XPU、CPU 后端及显卡 |
 | `flowhmr_get_parameter_schema` | 查询生成参数、默认值和导出选项 |
 | `flowhmr_import_video` | 导入本机视频并创建生成任务 |
 | `flowhmr_list_jobs` | 分页查询任务历史 |
@@ -91,6 +91,7 @@ MCP 创建的任务会显示在桌面任务历史中。队列、任务进度、�
 | 修正用地面 | `correction_floor_m` | `null` 为自动估计；数字为手动高度，单位米 |
 | SAM 批次 | `sam_chunk_size` | `null` 为自动；正整数为手动批次大小 |
 | SAM 手部采样 | `sam_hand_stride` | 1 为逐帧，2 或 4 为隔帧采样，间隔内的手部特征由插值补齐 |
+| SAM 执行位置 | `sam_backend` | 通常保留 `gpu`，程序按运行环境分配；支持混合推理的 Windows AMD 核显可选 `hybrid` |
 
 `auto_frames` 和 `max_frames` 也可用于控制处理帧数。HaMeR 和接触修正需要相应运行环境和模型。MCP 参数在导入或重跑时生效；角色预览偏移可单独修改。
 
@@ -114,7 +115,9 @@ MCP 创建的任务会显示在桌面任务历史中。队列、任务进度、�
 }
 ```
 
-提交后使用 `flowhmr_get_export` 和返回的 `export_id` 查询；状态为 `done` 时文件已导出。多人 VMD、VRMA 使用 `.zip` 输出；NPZ 导出完整结果，不支持按人物筛选。FBX 支持 `flowhmr`、`mixamo`、`metahuman`、`maya_adv` 和 `mixamo_iclone` 预设。模板和预设选项见 [导出与重定向](retarget-export.md)。
+提交后使用 `flowhmr_get_export` 和返回的 `export_id` 查询；状态为 `done` 时文件已导出。多人 VMD、VRMA 使用 `.zip` 输出；NPZ 导出完整结果，不支持按人物筛选。FBX 支持 `flowhmr`、`mixamo`、`metahuman`、`maya_adv` 和 `mixamo_iclone` 预设。
+
+MCP 的导出可在后台运行，不需要打开预览。它继续从任务结果生成文件，不读取当前视窗的角色校正。MCP 的旧模板接口仍可用：`metahuman`、`mixamo_iclone` 要求传入 `template_path`，`mixamo` 可选；模板流程每次导出一人，需设 `include_mesh: false` 和 `reference_pose: "none"`。需要把桌面当前角色的重定向结果烘焙到 FBX、VMD 或 GLB 时，使用桌面的 [导出与重定向](retarget-export.md) 界面。
 
 ## 相机准备、取消与配套导出
 
@@ -170,9 +173,9 @@ NPZ 本身作为完整文件保留，不拆成数组成员。MCP 配套导出沿
 | `root_rotation` | 根节点 XYZ 旋转，单位度 |
 | `root_translation` | 根节点 XYZ 位移，每轴 −5–5 米 |
 | `mirror` | 界面镜像编辑偏好，不自动修改另一侧关节 |
-| `ik_mode` | `fk` 或 `ik`；IK 适用于支持原生 IK 的 PMX |
+| `ik_mode` | `fk` 或 `ik`；IK 适用于有原生控制骨的 PMX 或已在重定向中绑定控制骨的 FBX / VRM |
 
-省略的字段保留原值，零向量可清除指定偏移。手指控制项 22–36 为双手共用控制项。调整会同步到预览，但不会修改原始动作，也不会自动烘焙到通用 MCP 动作导出。
+省略的字段保留原值，零向量可清除指定偏移。手指控制项 22–36 为双手共用控制项。保存过的 `pose.retarget`（映射、根骨、IK 控制骨、逐骨校正）和 `pose.boneOffsets` 可以读取，更新现有控制项时会保留这些数据。创建或改写骨骼映射、管理重定向预设仍在桌面重定向面板中完成。预览调整不会修改原始动作或影响 MCP 的后台动作导出。
 
 ## 播放和逐帧数据
 

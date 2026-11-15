@@ -116,13 +116,18 @@ class DesktopBackend:
 def status_page(state):
     language = read_language()
     heading, detail = MESSAGES[language][state]
+    # Startup waits for the local HTTP service. Models are loaded on demand,
+    # so a staged percentage would claim work the launcher isn't doing.
+    progress = (f'<progress aria-label="{escape(heading, quote=True)}"></progress>'
+                if state in ("starting", "switching") else "")
     return f"""<!doctype html><html lang="{language}"><meta charset="utf-8">
 <style>
 body {{margin:0;display:grid;place-items:center;min-height:100vh;background:#252525;color:#ededed;
        font:14px 'Segoe UI','Microsoft YaHei',sans-serif}}
 main {{width:min(480px,85%);padding:24px;background:#303030;border:1px solid #454545;border-radius:5px}}
 h1 {{font-size:18px;margin:0 0 12px}} p {{margin:0;color:#bbb;line-height:1.6}}
-</style><main><h1>{escape(heading)}</h1><p>{escape(detail)}</p></main></html>"""
+progress {{display:block;width:100%;height:.6rem;margin-top:1rem;accent-color:#5886b7}}
+</style><main><h1>{escape(heading)}</h1><p>{escape(detail)}</p>{progress}</main></html>"""
 
 
 def open_models_folder():

@@ -6,14 +6,16 @@
 
 **[Download the portable Windows edition](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest/download/FlowHMR-Windows.zip)** · [Release notes](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest) · [FlowHMR paper](https://arxiv.org/abs/2610.03691)
 
-## What's new in v0.3.5
+## What's new in v0.3.6
 
-- **CPU-only motion capture.** Intel and AMD x64 processors can run both fixed and moving camera modes without a GPU. HaMeR finger refinement is unavailable in this mode.
-- **More experimental GPU options.** Added runtimes for AMD integrated graphics, Radeon RX 5000 and Intel XPU. On compatible AMD integrated systems, SAM can split its work between the CPU and GPU to reduce GPU memory use. Intel XPU uses the GPU for SAM image encoding and the CPU for the other stages.
-- **Person detection respects the selected range.** Detection scans only the selected frames and runs again if you change the range. Preview and scene alignment still use the original video frame numbers.
-- **Local character import works with a system proxy.** Fixed an issue where a proxy could intercept local PMX, VRM and FBX requests ([#7](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/issues/7)).
+- **Custom retargeting and presets.** Pick bones in 3D using a floating, resizable panel. The guide continues from the body to both hands, with automatic mirroring on by default. Retargeting accounts for the target's height and limb lengths. Save character settings and reusable presets, and browse both by thumbnail.
+- **Export to the current character.** Mixamo and MetaHuman no longer ask for a template file at export. Character exports keep the saved retargeting and corrections; Mixamo can still use a generic rig. Compatible PMX rigs support IK and FK. Automatic root mapping prefers `センター` and falls back to `全ての親`. After retargeting a custom FBX, choose Current Character FBX to export its original skeleton with optional skin. Current Character FBX exports one person at a time, preserving their placement and entry time in a group scene. VRM keeps its GLB and VRMA export options.
+- **Generic VMD uses character corrections.** With a character applied, generic export keeps joint rotation and translation corrections, root adjustments, and foot IK/FK while using standard MMD bone names. Export to the current PMX for its exact proportions and sole contact.
+- **Smoother slow playback.** Choose a timeline display rate and keep it between sessions. Interpolated poses make slow playback smoother while source synchronization and export timing stay the same.
+- **AMD Radeon RX 6000 (experimental).** The Windows 11 runtime manager offers ROCm packages matched to the GPU architecture. The packages were checked; end-to-end motion capture on RX 6000 hardware is still unverified.
+- **MCP compatibility.** The 19 existing tools and background export options stay compatible. MCP can switch IK on custom FBX/VRM rigs with assigned controllers and report the active device backend. Exports that bake character corrections use the desktop app.
 
-[Release notes](../release-windows.md) · [v0.3.4: low-VRAM scene alignment fix](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/tag/windows-v0.3.4)
+[Full release notes](../release-windows.md) · [Previous release: v0.3.5](../release-windows-v0.3.5.md)
 
 ## System requirements and supported hardware
 
@@ -31,6 +33,7 @@
 | NVIDIA GeForce RTX 20 | CUDA 12.1 | Experimental |
 | NVIDIA GeForce GTX 10 | CUDA 12.1 | Experimental |
 | AMD Radeon RX 9000 / 7000 | [ROCm](../amd-rocm.md) | Verified |
+| AMD Radeon RX 6000 | [ROCm](../amd-rocm.md) | Experimental |
 | AMD Radeon RX 5000 | [ROCm](../amd-rocm.md) | Experimental |
 | AMD Radeon integrated GPUs (including 740M / 760M / 780M and some 800M models) | [ROCm](../amd-rocm.md) | Experimental (9950X iGPU verified; fixed camera recommended) |
 | Intel Arc A / B and some Core Ultra Arc integrated GPUs | [Intel XPU](../windows.md) | Experimental (GPU runs SAM image encoding only) |
@@ -44,8 +47,8 @@ HaMeR finger refinement is unavailable in CPU mode and on Intel XPU. SAM still r
 - **Preview and export multiple people together.** Select several people in one video. The combined preview and FBX preserve their relative positions and when each person enters. Reopen previous jobs from the thumbnail history.
 - **Adjust the result to suit the footage.** Tune motion smoothing, foot contact correction and ground height. Enable HaMeR on a compatible GPU runtime for more detailed finger motion. Fixed camera is the default; use moving camera mode when the camera clearly rotates horizontally, tilts or rolls.
 - **Run locally.** Install the inference runtime and model files as needed. Models load when generation starts. Once set up, the app can process videos offline. The interface is available in 简体中文, 繁體中文, English, 日本語, 한국어, Русский and Français. It remembers your language after you close it.
-- **Motion export.** Export FlowHMR, Mixamo, MetaHuman, or Maya AdvancedSkeleton FBX, MMD VMD, VRM Animation (VRMA), or NPZ. FlowHMR and Mixamo FBX can include a mesh and a T-pose or A-pose at frame **−1**. See the [export guide](../retarget-export.md).
-- **Custom characters.** Preview PMX, VRM 0.x or 1.0, and skinned Mixamo or MetaHuman FBX. Assign a different character to each person and save bone adjustments. Compatible PMX rigs can switch between native IK and FK.
+- **Motion export.** Export FBX for FlowHMR, Mixamo, MetaHuman or Maya AdvancedSkeleton, along with MMD VMD, VRM Animation (VRMA) and NPZ. Custom FBX export keeps the character’s original skeleton and saved motion corrections, with optional skin. A custom-mapped VRM can also export animated GLB with skin. FlowHMR and generic Mixamo FBX can include a skinned mesh or a T-pose or A-pose at frame **−1**. See the [export and retargeting guide](../retarget-export.md).
+- **Custom characters.** Preview PMX, VRM 0.x or 1.0, and skinned Mixamo or MetaHuman FBX. Assign a separate character to each person. Map joints, assign IK controllers, and adjust rotation and translation, or load and manage a saved preset.
 
 ## Example videos
 

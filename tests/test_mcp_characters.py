@@ -4,10 +4,23 @@ import struct
 import tempfile
 import unittest
 from pydantic import ValidationError
-from flowhmr.mcp.characters import PosePatch, texture_references
+from flowhmr.mcp.characters import PosePatch, can_request_ik, texture_references
 
 
 class CharacterContractsTest(unittest.TestCase):
+    def test_ik_requires_a_native_or_explicit_controller(self):
+        mapping = list(range(52))
+        pose = {'retarget': {'map': mapping, 'ik': {'leftFoot': 57}}}
+        self.assertTrue(can_request_ik('pmx', {}))
+        for kind in ('fbx', 'vrm'):
+            with self.subTest(kind=kind):
+                self.assertFalse(can_request_ik(kind, {}))
+                self.assertTrue(can_request_ik(kind, pose))
+                self.assertFalse(can_request_ik(kind, {'retarget': {
+                    'map': mapping, 'ik': {'leftFoot': 7}}}))
+                self.assertFalse(can_request_ik(kind, {'retarget': {
+                    'map': mapping[:7] + [-1] + mapping[8:], 'ik': {'leftFoot': 57}}}))
+
     def test_pose_rejects_invalid_values_and_preserves_unedited_controls(self):
         for values in ({'root_rotation':[0,181,0]}, {'root_translation':[0,6,0]},
                        {'rotations':{'99':[0,0,0]}}, {'rotations':{'16':[0,0]}},

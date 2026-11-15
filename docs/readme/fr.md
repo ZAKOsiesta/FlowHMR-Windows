@@ -6,14 +6,16 @@
 
 **[Télécharger l’édition portable pour Windows](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest/download/FlowHMR-Windows.zip)** · [Notes de version](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest) · [Article FlowHMR](https://arxiv.org/abs/2610.03691)
 
-## Nouveautés de la v0.3.5
+## Nouveautés de la v0.3.6
 
-- **Capture de mouvements sur CPU.** Les processeurs Intel et AMD x64 peuvent traiter les vidéos en mode caméra fixe ou mobile sans GPU. L’affinage des doigts avec HaMeR est indisponible dans ce mode.
-- **Nouvelles options GPU expérimentales.** Ajout d’environnements pour les GPU intégrés AMD, les Radeon RX 5000 et Intel XPU. Sur les systèmes AMD compatibles avec GPU intégré, SAM peut répartir le travail entre CPU et GPU pour réduire l’utilisation de la mémoire graphique. Intel XPU utilise le GPU pour encoder les images avec SAM et le CPU pour les autres étapes.
-- **Détection des personnes limitée à la plage choisie.** L’application analyse uniquement les images sélectionnées et relance la détection si la plage change. L’aperçu et l’alignement de la scène conservent la numérotation des images de la vidéo source.
-- **Import de personnages locaux avec un proxy système.** Correction d’un problème qui permettait à un proxy d’intercepter les requêtes locales pour les fichiers PMX, VRM et FBX ([#7](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/issues/7)).
+- **Reciblage personnalisé et préréglages.** Sélectionnez les os en 3D dans un panneau flottant et redimensionnable. Le guide couvre le corps puis les deux mains, avec la symétrie activée par défaut. Le reciblage tient compte de la taille et de la longueur des membres. Les personnages et les préréglages sont enregistrés et accessibles par vignettes.
+- **Export vers le personnage actuel.** Mixamo et MetaHuman n’exigent plus de choisir à nouveau un fichier modèle. L’export vers un personnage conserve le reciblage et les corrections enregistrés. Le squelette générique reste disponible pour Mixamo. Les PMX compatibles proposent IK et FK. Le choix automatique de l’os racine privilégie « センター », puis « 全ての親 ». Après le reciblage d’un FBX personnalisé, choisissez « FBX du personnage actuel » pour retrouver le squelette d’origine, avec ou sans maillage. Le FBX du personnage actuel s’exporte une personne à la fois tout en conservant sa position et son instant d’entrée dans une scène à plusieurs. Les exports GLB et VRMA restent disponibles pour les VRM.
+- **Le VMD générique reprend les corrections du personnage.** Après avoir appliqué un personnage, l’export conserve les corrections de rotation et de translation, les réglages de la racine et le mode IK/FK des pieds, avec les noms d’os MMD standard. Pour garder les proportions exactes et le contact des semelles, choisissez l’export vers le PMX actuel.
+- **Lecture ralentie plus fluide.** La fréquence d’affichage de la chronologie se règle et se mémorise. Le ralenti interpole les poses intermédiaires sans modifier la synchronisation ni le minutage de l’export.
+- **AMD Radeon RX 6000 (expérimental).** Sous Windows 11, l’application propose un environnement ROCm adapté à l’architecture du GPU. Les paquets ont été vérifiés ; la capture complète reste à tester sur une carte RX 6000.
+- **Compatibilité MCP.** Les 19 outils existants et les options d’export en arrière-plan restent compatibles. MCP peut commuter l’IK des FBX/VRM personnalisés dont les contrôleurs sont assignés et indiquer le moteur de calcul actif. L’export qui intègre les corrections du personnage se fait dans l’application de bureau.
 
-[Notes de version](../release-windows.md) · [v0.3.4 : correction de l’alignement de scène en cas de mémoire vidéo limitée](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/tag/windows-v0.3.4)
+[Notes de version complètes](../release-windows.md) · [Version précédente : v0.3.5](../release-windows-v0.3.5.md)
 
 ## Configuration requise et matériel compatible
 
@@ -31,6 +33,7 @@
 | NVIDIA GeForce RTX 20 | CUDA 12.1 | Expérimental |
 | NVIDIA GeForce GTX 10 | CUDA 12.1 | Expérimental |
 | AMD Radeon RX 9000 / 7000 | [ROCm](../amd-rocm.md) | Vérifié |
+| AMD Radeon RX 6000 | [ROCm](../amd-rocm.md) | Expérimental |
 | AMD Radeon RX 5000 | [ROCm](../amd-rocm.md) | Expérimental |
 | GPU intégrés AMD Radeon (dont les 740M / 760M / 780M et certains modèles 800M) | [ROCm](../amd-rocm.md) | Expérimental (GPU du 9950X vérifié ; caméra fixe recommandée) |
 | Intel Arc A / B et certains GPU intégrés Core Ultra Arc | [Intel XPU](../windows.md) | Expérimental (le GPU encode uniquement les images pour SAM) |
@@ -44,8 +47,8 @@ L’affinage des doigts avec HaMeR est indisponible en mode CPU et avec Intel XP
 - **Prévisualisez et exportez plusieurs personnes ensemble.** Sélectionnez plusieurs personnes dans la même vidéo. L’aperçu combiné et le FBX préservent leurs positions relatives et leurs instants d’entrée dans le cadre. Rouvrez les anciennes tâches depuis l’historique à vignettes.
 - **Ajustez le résultat selon la vidéo.** Réglez le lissage des mouvements, la correction des contacts des pieds et la hauteur du sol. Sur un environnement GPU compatible, activez HaMeR pour obtenir des mouvements de doigts plus détaillés. La caméra fixe est le mode par défaut ; choisissez la caméra mobile si la caméra pivote, s’incline ou roule visiblement.
 - **Traitez les vidéos en local.** Installez l’environnement d’inférence et les modèles dont vous avez besoin. Les modèles sont chargés au démarrage d’une génération. Une fois configurée, l’application peut fonctionner hors ligne. L’interface est disponible en 简体中文, 繁體中文, English, 日本語, 한국어, Русский et Français et mémorise votre choix.
-- **Export de mouvements.** Exportez en FBX FlowHMR, Mixamo, MetaHuman ou Maya AdvancedSkeleton, en VMD MMD, en VRM Animation (VRMA) ou en NPZ. Les FBX FlowHMR et Mixamo peuvent inclure un maillage et une pose T ou A à l’image **−1**. Voir le [guide d’export](../retarget-export.md).
-- **Personnages personnalisés.** Prévisualisez un PMX, un VRM 0.x ou 1.0, ou un FBX Mixamo ou MetaHuman avec maillage. Choisissez un personnage par personne et conservez les réglages des os. Les rigs PMX compatibles proposent IK et FK.
+- **Export de mouvements.** Exportez en FBX FlowHMR, Mixamo, MetaHuman ou Maya AdvancedSkeleton, en VMD MMD, en VRM Animation (VRMA) ou en NPZ. L’export d’un FBX personnalisé garde le squelette d’origine et les corrections enregistrées, avec ou sans maillage. Un VRM aux os associés manuellement peut aussi être exporté en GLB avec maillage et animation. Les FBX FlowHMR et Mixamo génériques peuvent inclure un maillage et une pose T ou A à l’image **−1**. Voir le [guide d’export et de reciblage](../retarget-export.md).
+- **Personnages personnalisés.** L’aperçu accepte les PMX, les VRM 0.x ou 1.0 et les FBX Mixamo ou MetaHuman avec maillage. Attribuez un personnage par personne, associez les os, choisissez les contrôleurs IK, réglez les rotations et les translations, ou chargez un préréglage existant.
 
 ## Vidéos d’exemple
 

@@ -111,8 +111,9 @@ class MCPService:
             instance = secrets.token_urlsafe(32)
             with (logs / 'mcp.log').open('a', encoding='utf-8') as log:
                 self.process = subprocess.Popen(
-                    [sys.executable, '-m', 'flowhmr.mcp.server', '--port', str(port),
+                    [sys.executable, '-B', '-m', 'flowhmr.mcp.server', '--port', str(port),
                      '--backend-url', backend_url, '--parent-pid', str(os.getpid()),
+                     '--state-dir', str(self.directory),
                      *(['--auth-enabled'] if auth_enabled else [])],
                     cwd=self.root, stdout=log, stderr=log,
                     env={**os.environ, INSTANCE_ENV: instance, SERVICE_KEY_ENV: self.service_key},

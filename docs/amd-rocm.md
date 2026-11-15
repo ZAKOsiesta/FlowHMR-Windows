@@ -17,10 +17,11 @@ AMD 和 NVIDIA 使用同一个 `FlowHMR-Windows.zip` 和 `FlowHMR.exe`。Windows
 | 部分 Radeon 820M / 840M / 860M | `gfx1152` / `gfx1153` | 实验支持；按设备架构匹配，待真机验证 |
 | Radeon RX 9000 独显 | RX 9070：`gfx1201`；RX 9060：`gfx1200` | 应用内按架构下载 |
 | Radeon RX 7000 独显 | RX 7900：`gfx1100`；RX 7800／7700：`gfx1101`；RX 7600：`gfx1102` | 应用内按架构下载 |
+| Radeon RX 6000 独显 | RX 6800／6900 XT／6950 XT：`gfx1030`；RX 6700／6750 XT：`gfx1031`；RX 6600／6650 XT：`gfx1032`；RX 6400／6500 XT：`gfx1034` | 实验中；Windows 安装包已核对，待实卡验证 |
 | Radeon RX 5000 独显 | RX 5700／5600 XT：`gfx1010`；RX 5500／5300：`gfx1012` | 实验入口；安装包已核对，待实机验证 |
 | Radeon Pro V520（Navi 12） | `gfx1011` | 实验入口；安装包已核对，待实机验证 |
 
-RX 5000 使用 [AMD TheRock 的 Windows 架构包](https://github.com/ROCm/TheRock/blob/main/SUPPORTED_GPUS.md#rocm-on-windows)，尚未列入 ROCm 7.14.0 的正式产品兼容表。启用前会检查实际显卡上的 FP16、卷积、注意力和稀疏张量算子。Windows 里的 AMD 驱动应与显卡型号对应。
+RX 5000 和 RX 6000 使用 [AMD TheRock 的 Windows 架构包](https://github.com/ROCm/TheRock/blob/main/SUPPORTED_GPUS.md#rocm-on-windows)，这与列入 AMD 的 [Windows PyTorch 产品兼容表](https://rocm.docs.amd.com/projects/radeon-ryzen/en/latest/docs/compatibility/compatibilityrad/windows/windows_compatibility.html)不同。应用按架构启用，启用前会检查实际显卡上的 FP16、卷积、注意力和稀疏张量等算子。RX 6000 的四组包均验证过解包与 CPU 侧加载；有匹配实卡后还需验证完整动捕流程。
 
 核显和 CPU 共用系统内存。程序会把模型按推理阶段移到 GPU，SAM 自动批次会参考可用系统内存。固定机位跳过相机模型；如果选运动相机，AMD 核显模式会让 CPU 估计相机，自动最多采样 16 帧。此路径已用真实的 CPU 相机进程验证，长视频、多人物和小内存机器的表现仍待验证。若失败，请保留 `logs/web.stderr.log`，并记录显卡、驱动、Windows 版本和失败阶段。
 

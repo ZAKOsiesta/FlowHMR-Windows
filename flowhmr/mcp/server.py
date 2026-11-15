@@ -110,12 +110,13 @@ def main():
     parser.add_argument('--port', type=int, default=60551)
     parser.add_argument('--backend-url', default='http://127.0.0.1:60550')
     parser.add_argument('--parent-pid', type=int)
+    parser.add_argument('--state-dir', type=Path, default=Path(__file__).resolve().parents[2] / '.cache/mcp')
     parser.add_argument('--auth-enabled', action='store_true', help='Require the saved Bearer token')
     args = parser.parse_args()
-    token = ((Path(__file__).resolve().parents[2] / '.cache/mcp/token').read_text('ascii').strip()
-             if args.auth_enabled else None)
+    token = ((args.state_dir / 'token').read_text('ascii').strip() if args.auth_enabled else None)
     app = create_app(args.backend_url, args.port, token, shutdown=lambda: setattr(server, 'should_exit', True),
-                     service_key=os.environ.get(SERVICE_KEY_ENV), instance=os.environ.get(INSTANCE_ENV))
+                     export_directory=args.state_dir / 'exports', service_key=os.environ.get(SERVICE_KEY_ENV),
+                     instance=os.environ.get(INSTANCE_ENV))
     server = uvicorn.Server(uvicorn.Config(app, host='127.0.0.1', port=args.port, access_log=False))
 
     async def run():

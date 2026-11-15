@@ -6,8 +6,8 @@ import { $, show, personColor } from "./utils.js";
 import { appError, message as m, setAttr, setText, t } from "./i18n.js";
 import * as api from "./api.js";
 import { initPreviewCharacter } from "./preview-character.js";
-import { initPoseEditor } from "./pose-editor.js";
 import { applySourceCamera, sourceViewport, placedCameraTransform } from './paired-camera.js';
+import { sampleFrame } from './frame-sample.js';
 
 const BODY_STORAGE = "flowhmr-body-variant";
 const MOUSE_MODE_STORAGE = "flowhmr-mouse-mode";
@@ -128,6 +128,7 @@ export function initViewer(preview) {
   window.__viewer = { get camera() { return camera; }, controls, zoom,
     get scene() { return scene; }, get renderer() { return renderer; },
     get renderCount() { return renderer.info.render.frame; },
+    get playback() { return { frame:state.frame, visualFrame:state.visualFrame, position:state.playbackPosition }; },
     get groundHeight() { return floor.position.y; },
     get skeleton() { return actors[0]?.skeleton?.group; }, get actors() { return actors; } };  // for automated tests
 
@@ -200,25 +201,27 @@ export function initViewer(preview) {
   skeletonToggle.checked = showSkeletonOverlay;
   coneToggle.checked = localStorage.getItem("flowhmr-bone-cones") === "on";
   const state = {
-    jobId: null, meta: null, scene: null, cameraState: 'none', bodyVariant: "neutral", frame: 0, playing: false, speed: 1, lastT: 0, acc: 0,
+    jobId: null, meta: null, scene: null, cameraState: "none", bodyVariant: "neutral", frame: 0, visualFrame: -1, playbackPosition: 0,
+    playing: false, speed: 1, lastT: 0,
     prevRoot: new THREE.Vector3(),
   };
-  const poseMenu = $("characterPoseMenu");
-  const poseEditor = initPoseEditor((entry, settings) => {
-    character.editPose(entry, settings);
-    drawActorFrame(entry.actor, state.frame);
-    renderer.shadowMap.needsUpdate = true;
-    invalidate();
-  }, (id) => character.focus(id));
-  poseMenu.addEventListener("toggle", () => syncSkeletonDisplay());
-  const character = initPreviewCharacter(() => actors, () => {
-    poseEditor.setActors(actors, character.focused?.id);
+  const character = initPreviewCharacter(() => actors, (editedActor) => {
+    if (editedActor) {
+      // While adjusting retarget offsets only the draft rig needs a redraw.
+      drawActorFrame(editedActor, state.visualFrame);
+      updateSourceAvailability();
+      updateSourceCamera();
+      renderer.shadowMap.needsUpdate = true;
+      invalidate();
+      return;
+    }
     syncSkeletonDisplay();
-    if (state.meta && state.frame >= 0) updateFrameRoot(state.frame);
+    if (state.meta && state.visualFrame >= 0) updateFrameRoot(state.visualFrame);
     updateSourceAvailability();
     if (sourceView) updateSourceCamera();
     labelBody();
   }, (error) => setText($("viewportObject"), error));
+  $("retargetDialog").addEventListener("close",syncSkeletonDisplay);
 
   function updateOrthographic() {
     const halfHeight = camera.position.distanceTo(controls.target) * Math.tan(THREE.MathUtils.degToRad(perspective.fov / 2));
@@ -316,9 +319,10 @@ export function initViewer(preview) {
   }
   $("toggleProjection").onclick = toggleProjection;
   function updateSourceAvailability() {
-    const unsupported = actors.some((actor) => actor.character && actor.character.asset.kind !== 'pmx');
+    const customScale = actors.some((actor) => actor.character?.rig.cameraTransform?.supported === false);
+    const unsupported = customScale || actors.some((actor) => actor.character && actor.character.asset.kind !== 'pmx');
     $('sourceCameraView').disabled = !state.jobId || unsupported || state.cameraState === 'preparing';
-    setAttr($('sourceCameraView'), 'title', unsupported ? m('view.source_camera_pmx_only') : '');
+    setAttr($('sourceCameraView'), 'title', customScale ? m('camera.custom_scale_unsupported') : unsupported ? m('view.source_camera_pmx_only') : '');
     if (unsupported && sourceView) setProjection(orbitCamera);
   }
   function cameraTransform(people = []) {
@@ -330,7 +334,7 @@ export function initViewer(preview) {
   function updateSourceCamera() {
     if (!sourceView || !cameraData || !state.meta) return;
     sourceFrameValid = applySourceCamera(recoveredCamera, cameraData,
-      sourceStart(state.meta) + state.frame - cameraData.track_start, cameraTransform());
+      sourceStart(state.meta) + presentationFrame(state.visualFrame) - cameraData.track_start, cameraTransform());
     setText($('viewportName'), m(sourceFrameValid ? 'view.source_camera' : 'view.source_camera_gap'));
     invalidate();
   }
@@ -421,7 +425,6 @@ export function initViewer(preview) {
     }
     actors = [];
     show("previewCharacter", false);
-    poseEditor.setActors([]);
     window.dispatchEvent(new Event("flowhmr:characterchange"));
   }
 
@@ -504,9 +507,9 @@ export function initViewer(preview) {
     const { skeleton } = actor;
     if (!skeleton?.group.visible) return;
     const { points, lines, cones, stride, joints, edges, parents } = skeleton;
-    if (poseMenu.open && actor.character) {
-      const { asset, mesh, rig } = actor.character;
-      const bones = asset.kind === "pmx" ? mesh.skeleton.bones : asset.getRig(mesh).bones;
+    if ($("retargetDialog").open && actor.character) {
+      const { mesh, rig } = actor.character;
+      const bones = characterBones(actor.character);
       actor.group.updateWorldMatrix(true, false);
       mesh.updateMatrixWorld(true);
       inverseActor.copy(actor.group.matrixWorld).invert();
@@ -515,7 +518,14 @@ export function initViewer(preview) {
         if (bone) boneHead.setFromMatrixPosition(bone.matrixWorld).applyMatrix4(inverseActor).toArray(points.array, j * 3);
         else if (parents[j] >= 0) points.array.copyWithin(j * 3, parents[j] * 3, parents[j] * 3 + 3);
       }
-    } else points.array.set(joints.subarray(frame * stride, (frame + 1) * stride));
+    } else {
+      const lo = Math.floor(frame), hi = Math.min(lo + 1, actor.meta.num_frames - 1), t = frame - lo;
+      if (!t || lo === hi) points.array.set(joints.subarray(lo * stride, (lo + 1) * stride));
+      else {
+        const a = lo * stride, b = hi * stride;
+        for (let i = 0; i < stride; i++) points.array[i] = joints[a + i] + t * (joints[b + i] - joints[a + i]);
+      }
+    }
     points.needsUpdate = true;
     if (cones.visible) {
       let count = 0;
@@ -553,7 +563,7 @@ export function initViewer(preview) {
     wireToggle.disabled = only;
     setText($("viewportMode"), m(only ? "view.skeleton_only" : bodyMat.wireframe ? "view.wire_preview" : "view.solid"));
     setAttr($("skeletonOverlayLabel"), "title", m(character.active
-      ? poseMenu.open ? "pose.target_overlay" : "character.skeleton" : "view.skeleton_hint"));
+      ? $("retargetDialog").open ? "pose.target_overlay" : "character.skeleton" : "view.skeleton_hint"));
     for (const actor of actors) {
       const mesh = actor.character?.mesh;
       actor.body.visible = !mesh && (!only || !actor.skeleton);
@@ -569,7 +579,7 @@ export function initViewer(preview) {
         cones.visible = coneToggle.checked;
         cones.material.depthTest = cones.material.depthWrite = only;
       }
-      drawActorFrame(actor, state.frame);
+      drawActorFrame(actor, state.visualFrame);
     }
     renderer.shadowMap.needsUpdate = true;
     invalidate();
@@ -622,14 +632,35 @@ export function initViewer(preview) {
   const sourceStart = (meta) => meta.track_start ?? 0;
   const actorFrame = (actor, frame) => sourceStart(state.meta) + frame - sourceStart(actor.meta);
 
+  function presentationFrame(frame) {
+    // A single display clock keeps camera, body, skeleton and retargeted rig
+    // together when any participating track reaches a discontinuity.
+    for (const actor of actors) {
+      const local = actorFrame(actor, frame), m = actor.meta;
+      if (local >= 0 && local < m.num_frames &&
+          sampleFrame(local, m.num_frames, m.valid_frames, m.shot_ids).frame !== local)
+        return Math.floor(frame);
+    }
+    if (cameraData) {
+      const local = sourceStart(state.meta) + frame - cameraData.track_start;
+      if (local >= 0 && local < cameraData.RT.length &&
+          sampleFrame(local, cameraData.RT.length, cameraData.camera_valid, cameraData.shot_ids).frame !== local)
+        return Math.floor(frame);
+    }
+    return frame;
+  }
+
   function frameRoot(f) {
     const root = new THREE.Vector3();
     for (const actor of actors) {
-      const i = Math.min(actor.meta.num_frames - 1, Math.max(0, actorFrame(actor, f)));
-      let [x, z] = actor.meta.root_trajectory[i];
+      const p = Math.min(actor.meta.num_frames - 1, Math.max(0, actorFrame(actor, f)));
+      const { lo, hi, alpha: blend } = sampleFrame(p, actor.meta.num_frames, actor.meta.valid_frames, actor.meta.shot_ids);
+      const [a, b] = actor.meta.root_trajectory[lo], [c, d] = actor.meta.root_trajectory[hi];
+      let x = a + blend * (c - a), z = b + blend * (d - b);
       const scale = actor.character?.rig.rootMotionScale ?? 1;
       if (scale !== 1) {
-        const [startX, startZ] = actor.meta.root_trajectory[0];
+        const anchor = Math.max(0, actor.meta.valid_frames?.findIndex(Boolean) ?? 0);
+        const [startX, startZ] = actor.meta.root_trajectory[anchor];
         x = startX + (x - startX) * scale;
         z = startZ + (z - startZ) * scale;
       }
@@ -641,11 +672,12 @@ export function initViewer(preview) {
 
   function drawActorFrame(actor, globalFrame) {
     const { body, group, meta, verts } = actor;
-    const f = actorFrame(actor, globalFrame);
-    group.visible = globalFrame >= 0 && f >= 0 && f < meta.num_frames && (meta.valid_frames?.[f] ?? true);
+    const sample = sampleFrame(actorFrame(actor, globalFrame), meta.num_frames, meta.valid_frames, meta.shot_ids);
+    const f = sample.frame;
+    group.visible = globalFrame >= 0 && sample.visible;
     if (!group.visible) return;
     if (actor.character) {
-      if (actor.character.mesh.visible || (poseMenu.open && actor.skeleton?.group.visible)) actor.character.rig.apply(f);
+      if (actor.character.mesh.visible || ($("retargetDialog").open && actor.skeleton?.group.visible)) actor.character.rig.apply(f);
       drawSkeletonFrame(actor, f);
       return;
     }
@@ -653,8 +685,12 @@ export function initViewer(preview) {
     if (!body.visible) return;
     const pos = body.geometry.attributes.position;
     const n = pos.array.length;
-    const offset = f * n;
-    for (let i = 0; i < n; i++) pos.array[i] = fromHalf[verts[offset + i]];
+    const lo = Math.floor(f), hi = Math.min(lo + 1, meta.num_frames - 1), t = f - lo;
+    const a = lo * n, b = hi * n;
+    for (let i = 0; i < n; i++) {
+      const at = fromHalf[verts[a + i]];
+      pos.array[i] = t && lo !== hi ? at + t * (fromHalf[verts[b + i]] - at) : at;
+    }
     pos.needsUpdate = true;
     body.geometry.computeVertexNormals();
   }
@@ -671,48 +707,84 @@ export function initViewer(preview) {
     state.prevRoot.copy(root);
   }
 
-  function setFrame(f) {
+  function setFrame(f, sourceFrame = Math.floor(f)) {
     const m = state.meta;
-    if (!m || !actors.length) return;
-    f = Math.max(0, Math.min(m.num_frames - 1, f));
-    if (f === state.frame) return;
-    state.frame = f;
-    for (const actor of actors) drawActorFrame(actor, f);
-    updateFrameRoot(f);
+    if (!m || !actors.length || !Number.isFinite(f)) return;
+    state.playbackPosition = Math.max(0, f);
+    const integer = Math.max(0, Math.min(m.num_frames - 1, sourceFrame));
+    // Keep normal-speed renders on source frames. At slow speeds or higher
+    // display rates, draw in-between poses without changing the source clock.
+    const fractional = state.playing && (state.speed < 1 || displayRate() > m.fps);
+    const pose = presentationFrame(fractional ? Math.min(m.num_frames - 1, state.playbackPosition) : integer);
+    if (pose === state.visualFrame && integer === state.frame) {
+      if (fractional) renderFrameCounter();
+      return;
+    }
+    if (integer !== state.frame) {
+      state.frame = integer;
+      scrub.value = integer;
+    }
+    if (pose === state.visualFrame) {
+      renderFrameCounter();
+      return;
+    }
+    state.visualFrame = pose;
+    for (const actor of actors) drawActorFrame(actor, pose);
+    updateFrameRoot(pose);
     updateSourceCamera();
-    scrub.value = f;
-    const displayFrame = (state.scene ? sourceStart(m) : 0) + f + 1;
-    $("frameLabel").textContent = `${displayFrame} / ${(state.scene ? sourceStart(m) : 0) + m.num_frames}`;
-    $("playhead").textContent = displayFrame;
-    const position = f / Math.max(1, m.num_frames - 1);
+    renderFrameCounter();
+    const position = pose / Math.max(1, m.num_frames - 1);
     $("timelineTrack").style.setProperty("--playhead", `calc(${position * 100}% + ${12 - 24 * position}px)`);
     renderer.shadowMap.needsUpdate = true;
     invalidate();
   }
 
   const frameButtons = [...document.querySelectorAll("[data-frame-action]")];
+  const fpsSelect = $("displayFps"), fpsKey = "flowhmr-display-fps";
+  const savedFps = localStorage.getItem(fpsKey);
+  if ([...fpsSelect.options].some((option) => option.value === savedFps)) fpsSelect.value = savedFps;
+  const displayRate = () => Number(fpsSelect.value) || state.meta?.fps || 30;
+  const displayOffset = () => state.scene ? sourceStart(state.meta) : 0;
+  const frameNumber = (f) => Math.floor((displayOffset() + f) * displayRate() / state.meta.fps + 1e-8) + 1;
+  const displayEnd = () => Math.max(frameNumber(state.meta.num_frames - 1),
+    Math.round((displayOffset() + state.meta.num_frames) * displayRate() / state.meta.fps));
+  function renderFrameCounter() {
+    if (!state.meta || state.frame < 0) return;
+    const rate = displayRate();
+    const end = displayEnd();
+    const frame = !state.playing && state.frame === state.meta.num_frames - 1 ? end :
+      Math.min(end, frameNumber(rate === state.meta.fps ? state.frame : state.playbackPosition));
+    $("frameLabel").textContent = `${frame} / ${end}`;
+    $("playhead").textContent = frame;
+  }
+  fpsSelect.onchange = () => {
+    localStorage.setItem(fpsKey, fpsSelect.value);
+    setTimeline(state.meta?.num_frames ?? 0);
+  };
   function setTimeline(frameCount) {
     const ready = frameCount > 0;
     scrub.max = Math.max(0, frameCount - 1);
-    scrub.value = 0;
+    scrub.value = Math.max(0, state.frame);
     scrub.disabled = $("btnPlay").disabled = $("speed").disabled = !ready;
     for (const button of frameButtons) button.disabled = !ready;
     $("timelineTrack").classList.toggle("has-motion", ready);
-    const start = ready && state.scene ? sourceStart(state.meta) + 1 : 1;
-    $("timelineRange").textContent = ready ? `${start}–${start + frameCount - 1} · ${state.meta.fps} FPS` : "30 FPS";
+    const start = ready ? frameNumber(0) : 1;
+    $("timelineRange").textContent = ready ? `${start}–${displayEnd()} · ${displayRate()} FPS` : `${displayRate()} FPS`;
     const tickCount = Math.min(5, frameCount);
     const ticks = Array.from({ length: tickCount }, (_, i) => {
       const tick = document.createElement("span");
-      tick.textContent = Math.round(i * (frameCount - 1) / Math.max(1, tickCount - 1)) + start;
+      tick.textContent = i > 0 && i === tickCount - 1 ? displayEnd() :
+        frameNumber(Math.round(i * (frameCount - 1) / Math.max(1, tickCount - 1)));
       return tick;
     });
     $("timelineTicks").replaceChildren(...ticks);
     if (!ready) $("frameLabel").textContent = "– / –";
+    else renderFrameCounter();
   }
 
   function frameView(direction) {
     const m = state.meta;
-    const root = m ? frameRoot(state.frame) : new THREE.Vector3();
+    const root = m ? frameRoot(state.visualFrame) : new THREE.Vector3();
     const height = m ? Math.max(1.2, m.bbox_max[1] - m.bbox_min[1]) : defaultTarget.y * 2;
     const width = state.scene ? Math.hypot(m.bbox_max[0] - m.bbox_min[0], m.bbox_max[2] - m.bbox_min[2]) : 0;
     const distance = m ? Math.max(4, height * 2.4, width * 1.7) : frontOffset.length();
@@ -784,10 +856,13 @@ export function initViewer(preview) {
 
   function setPlaying(p, driveVideo = true) {
     if (state.playing !== p) {
-      state.acc = state.lastT = 0;
+      state.lastT = 0;
+      if (p) state.playbackPosition = Math.max(0, state.frame);
       resetMediaWatch();
     }
     state.playing = p;
+    if (!p && state.meta && state.frame >= 0) setFrame(state.frame);
+    renderFrameCounter();
     $("iconPlay").classList.toggle("hidden", p);
     $("iconPause").classList.toggle("hidden", !p);
     if (driveVideo) syncVideo(true);
@@ -873,7 +948,7 @@ export function initViewer(preview) {
     if (e.code === "Space") {
       const timelineControl = target.matches('.timeline-editor input[type="range"], #controls .transport, #btnPlay');
       if (!state.meta || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || target.isContentEditable
-          || document.querySelector("dialog[open]")
+          || document.querySelector("dialog:modal")
           || (!timelineControl && target.closest("input, select, textarea, button, summary, a[href]"))) return;
       e.preventDefault();
       if (!e.repeat) $("btnPlay").click();
@@ -905,7 +980,10 @@ export function initViewer(preview) {
         playVideo();
         return;
       }
-      if (next >= 0 && next !== state.frame) setFrame(next);
+      if (next >= 0) {
+        const position = clock.positionAt(time, state.meta.fps) - (state.meta.track_start || 0) - 0.5;
+        setFrame(position, next);
+      }
     }
     // A stalled decoder can report paused=false indefinitely. Give the same
     // source one fresh load at the current frame, then keep the motion usable.
@@ -926,17 +1004,11 @@ export function initViewer(preview) {
     if (state.playing && state.meta) {
       if (mediaEnabled() && !media.fallback) tickMedia(t);
       else {
-        state.acc += dt * state.meta.fps * state.speed;
-        if (state.acc >= 1) {
-          const steps = Math.floor(state.acc);
-          state.acc -= steps;
-          let next = state.frame + steps;
-          if (next >= state.meta.num_frames) {
-            next = 0;
-            if ($("optFollow").checked) recenterOnFrame(0);
-          }
-          setFrame(next);
-        }
+        const advanced = state.playbackPosition + dt * state.meta.fps * state.speed;
+        const frames = state.meta.num_frames, next = advanced % frames;
+        if (advanced >= frames && $("optFollow").checked) recenterOnFrame(next);
+        // setFrame holds the final pose while retaining its full clock interval.
+        setFrame(next);
       }
     }
     const zooming = !sourceView && applyZoom();
@@ -966,6 +1038,11 @@ export function initViewer(preview) {
   }
 
   // ---------------------------------------------------------------- public API
+  function characterBones({asset,mesh,poseOffsets}) {
+    if(asset.kind==="pmx") return mesh.skeleton.bones;
+    const target=asset.getRig(mesh);
+    return poseOffsets?.retarget ? target.manualBones??target.bones : target.bones;
+  }
   function labelBody() {
     const custom = actors.filter((actor) => actor.character).length;
     const asset = character.active;
@@ -973,7 +1050,7 @@ export function initViewer(preview) {
       t("view.scene"),
       [state.scene ? t("person.count", { count: actors.length }) : "",
         ...(custom > 1 ? [t("character.custom_count", { count: custom })]
-          : asset ? [({ mixamo: "Mixamo", metahuman: "MetaHuman", vrm: "VRM" })[asset.profile] ?? "PMX", asset.name]
+          : asset ? [({ mixamo: "Mixamo", metahuman: "MetaHuman", vrm: "VRM",custom:"FBX" })[asset.profile] ?? "PMX", asset.name]
             : ["SMPL-H", t(`view.${state.bodyVariant}`)])].filter(Boolean).join(" · "),
     ].join(" | "));
   }
@@ -1045,7 +1122,7 @@ export function initViewer(preview) {
       vertices.forEach((data, i) => { actors[i].verts = new Uint16Array(data); });
       state.bodyVariant = selected;
       localStorage.setItem(BODY_STORAGE, selected);
-      for (const actor of actors) drawActorFrame(actor, state.frame);
+      for (const actor of actors) drawActorFrame(actor, state.visualFrame);
       invalidate();
       labelBody();
     } catch (error) {
@@ -1098,9 +1175,10 @@ export function initViewer(preview) {
           let target = null;
           if (actor.character && active) {
             const { asset, mesh, rig } = actor.character;
-            // A hidden character is not normally advanced during rendering.
-            if (!mesh.visible && !(poseMenu.open && actor.skeleton?.group.visible)) rig.apply(frame);
-            const bones = asset.kind === 'pmx' ? mesh.skeleton.bones : asset.getRig(mesh).bones;
+            // MCP reports an exact source frame even during interpolated playback.
+            const changed = actorFrame(actor, state.visualFrame) !== frame;
+            if (changed || !mesh.visible) rig.apply(frame);
+            const bones = characterBones(actor.character);
             actor.group.updateWorldMatrix(true, true);
             target = { kind: asset.kind, character_id: actor.character.libraryId, visible: mesh.visible,
               index_space: asset.kind === 'pmx' ? 'PMX skeleton bone order' :
@@ -1117,29 +1195,61 @@ export function initViewer(preview) {
                   local_quaternion: bone.quaternion.toArray(), local_scale: bone.scale.toArray(),
                   world_position: worldPosition.toArray(), world_quaternion: worldQuaternion.toArray() };
               }) };
+            const visibleFrame = actorFrame(actor, state.visualFrame);
+            if (changed && actor.group.visible) rig.apply(visibleFrame);
           }
           return { actor_id: actor.id, person_id: actor.number ?? null, active,
             frame: active ? frame : null, source_skeleton: source, character_skeleton: target };
         }),
       };
     },
-    openCharacter: character.open,
+    openCharacter(person) {
+      const actor = person == null ? null : actors.find((a) => String(a.number) === String(person));
+      return character.open(actor?.id);
+    },
+    getFbxActor(people, profile) {
+      if (state.scene && people.length !== 1) return null;
+      const actor = state.scene ? actors.find((a) => String(a.number) === String(people[0])) : actors[0];
+      const entry = actor?.character;
+      if (entry?.asset.kind !== "fbx" || (profile === "retarget_fbx"
+        ? entry.asset.profile === "custom" && !entry.poseOffsets?.retarget
+        : entry.asset.profile !== profile)) return null;
+      return { asset:entry.asset, libraryId:entry.libraryId, motion:entry.motion, poseOffsets:entry.poseOffsets,
+        offset:actor.group.position.toArray(), yaw:actor.group.rotation.y };
+    },
+    getRetargetActors(people) {
+      const selected = new Set(people.map(String));
+      const group = actors.filter((actor) => !state.scene || selected.has(String(actor.number)));
+      if (!group.length || (state.scene && group.length !== selected.size) ||
+          group.some((a) => !a.character?.poseOffsets?.retarget || a.character.asset.kind !== "vrm")) return [];
+      return group.map((a) => ({
+        ...a.character, person:a.number, fps:a.meta.fps,
+        start:state.scene || a.meta.valid_frames ? sourceStart(a.meta) : 0,
+        frames:(state.scene || a.meta.valid_frames ? sourceStart(state.meta) : 0)+state.meta.num_frames,
+        offset:a.group.position.toArray(), yaw:a.group.rotation.y,
+      }));
+    },
     getCameraTransform: cameraTransform,
     getPmxActors(people) {
+      const group = this.getVmdActors(people);
+      return group.every((actor) => actor.asset?.kind === "pmx") ? group : [];
+    },
+    getVmdActors(people) {
       const selected = new Set(people.map(String));
       const targets = actors.filter((actor) => !state.scene || selected.has(String(actor.number)));
-      if ((state.scene && targets.length !== selected.size) ||
-          targets.some((actor) => actor.character?.asset.kind !== "pmx")) return [];
+      if (state.scene && targets.length !== selected.size) return [];
       return targets.map((actor) => ({
+        id: actor.id,
         person: actor.number,
         start: state.scene || actor.meta.valid_frames ? sourceStart(actor.meta) : 0,
         sceneEnd: state.scene ? sourceStart(state.meta) + state.meta.num_frames - 1 : null,
         fps: actor.meta.fps,
         yaw: actor.group.rotation.y,
         offset: actor.group.position.toArray(),
-        asset: actor.character.asset,
-        motion: actor.character.motion,
-        poseOffsets: actor.character.poseOffsets,
+        asset: actor.character?.asset,
+        motion: actor.character?.motion,
+        cameraTransform: actor.character?.rig.cameraTransform,
+        poseOffsets: actor.character?.poseOffsets,
       }));
     },
     setBodyVariants(names = ["neutral"], preferred = "neutral") {
@@ -1197,7 +1307,8 @@ export function initViewer(preview) {
       state.meta = meta;
       state.scene = groupScene;
       state.frame = -1;
-      state.acc = 0;
+      state.visualFrame = -1;
+      state.playbackPosition = 0;
       state.lastT = 0;
       resetMediaSync();
       state.bodyVariant = bodySelect.value = variant === "source"

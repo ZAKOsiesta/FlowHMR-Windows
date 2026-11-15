@@ -368,55 +368,10 @@
           </select>
         </label>
         <button type="button" class="btn-secondary small hidden" id="previewCharacter" data-i18n="character.button" data-i18n-title="character.title">角色</button>
-        <details class="editor-menu hidden" id="characterPoseMenu" data-keep-open>
-          <summary data-i18n="pose.menu">骨骼调节</summary>
-          <div class="editor-menu-popup character-pose-popup">
-            <div id="posePanelGrip" class="pose-panel-grip" title="拖动标题栏移动面板" data-i18n-title="pose.drag_panel">
-              <svg viewBox="0 0 12 16" aria-hidden="true"><path d="M3 3h.01M9 3h.01M3 8h.01M9 8h.01M3 13h.01M9 13h.01" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
-              <span data-i18n="pose.menu">骨骼调节</span>
-            </div>
-            <div class="pose-panel-body">
-              <label class="character-selection pose-person hidden" id="poseActorRow">
-                <span data-i18n="character.actor">人物</span>
-                <select class="input" id="poseActor"></select>
-              </label>
-              <div id="poseIkRow" class="character-selection pose-person hidden">
-                <span data-i18n="pose.pmx_mode">骨骼模式</span>
-                <div class="pose-tabs pose-ik-tabs">
-                  <button type="button" id="poseFkMode" aria-pressed="true" data-i18n-title="pose.pmx_fk_hint">FK</button>
-                  <button type="button" id="poseIkMode" aria-pressed="false" data-i18n-title="pose.pmx_ik_hint">IK</button>
-                </div>
-              </div>
-              <div class="pose-toolbar">
-                <div class="pose-tabs">
-                  <button type="button" id="poseBodyTab" aria-pressed="true" data-i18n="pose.body">身体</button>
-                  <button type="button" id="poseFingersTab" aria-pressed="false" data-i18n="pose.fingers">手指</button>
-                </div>
-                <button type="button" id="poseResetAll" data-i18n="pose.reset_all">重置全部</button>
-              </div>
-              <div class="pose-content">
-                <div>
-                  <div id="poseDiagram" class="pose-diagram"></div>
-                  <p class="pose-hint" id="poseDiagramHint"></p>
-                </div>
-                <div class="pose-controls">
-                  <div class="pose-joint-heading">
-                    <strong id="poseJointName"></strong>
-                    <span id="poseMappedName"></span>
-                  </div>
-                  <div id="poseRotationAxes"></div>
-                  <div id="poseTranslationAxes" class="hidden"></div>
-                  <div class="pose-joint-actions">
-                    <button type="button" id="poseResetJoint" data-i18n="pose.reset_joint">重置此骨骼</button>
-                    <button type="button" id="poseMirror" aria-pressed="false" data-i18n="pose.live_mirror"
-                            data-i18n-title="pose.live_mirror_hint" title="开启后，调整成对的骨骼时另一侧实时镜像">镜像调节</button>
-                  </div>
-                </div>
-              </div>
-              <p class="pose-hint pose-export-hint" data-i18n="pose.hint">实时作用于整段动作，按当前 PMX 角色导出 VMD 时会保留。</p>
-            </div>
-          </div>
-        </details>
+        <div class="retarget-launch">
+          <button type="button" class="btn-secondary small hidden" id="retargetCurrent" aria-controls="retargetActorMenu" data-i18n="retarget.title">重定向</button>
+          <div class="editor-menu-popup hidden" id="retargetActorMenu" role="group" data-i18n-label="character.actor"></div>
+        </div>
         <span class="result-info" id="resultInfo"></span>
       </div>
       <div class="downloads">
@@ -476,6 +431,12 @@
           <option value="0.5">0.5×</option>
           <option value="1" selected>1×</option>
           <option value="2">2×</option>
+        </select>
+        <select id="displayFps" class="select" aria-label="时间轴显示帧率" data-i18n-label="timeline.display_fps" data-i18n-title="timeline.display_fps">
+          <option value="0" data-i18n="timeline.source_fps">素材帧率</option>
+          <option value="24">24 FPS</option><option value="25">25 FPS</option>
+          <option value="30">30 FPS</option><option value="48">48 FPS</option>
+          <option value="50">50 FPS</option><option value="60">60 FPS</option><option value="120">120 FPS</option>
         </select>
       </div>
       <span class="timeline-rate" id="timelineRange">30 FPS</span>
@@ -651,9 +612,11 @@
       <span data-i18n="export.format">格式</span>
       <select id="motionExportFormat" class="input">
         <option value="flowhmr">FlowHMR FBX</option>
+        <option value="retarget_fbx" data-i18n="retarget.fbx">当前角色 FBX</option>
         <option value="mixamo">Mixamo FBX</option>
         <option value="metahuman">MetaHuman FBX</option>
         <option value="maya_adv">Maya AdvancedSkeleton FBX</option>
+        <option value="retarget_glb" data-i18n="retarget.glb">VRM 角色 GLB</option>
         <option value="vmd">MMD VMD</option>
         <option value="vrma">VRM Animation (.vrma)</option>
         <option value="npz">NPZ</option>
@@ -664,6 +627,13 @@
       <label class="fbx-export-skin"><input type="checkbox" id="includeCamera"> <span data-i18n="export.include_camera">同时导出摄像机</span></label>
       <p class="setting-help" id="pairedCameraHint"></p>
     </div>
+    <div id="mixamoRigOptions" class="character-file hidden">
+      <select class="input" id="mixamoRig" aria-label="骨架" data-i18n-label="export.fbx_rig">
+        <option value="target" id="mixamoRigCharacter"></option>
+        <option value="generic" data-i18n="export.mixamo_generic">通用 Mixamo 骨架</option>
+      </select>
+    </div>
+    <button type="button" class="btn-secondary small hidden" id="fbxChooseCharacter" data-i18n="export.open_characters">打开角色</button>
     <div id="vmdOptions" class="character-file hidden">
       <select class="input" id="vmdTarget" aria-label="PMX 模型" data-i18n-label="character.file">
         <option value="target" id="vmdTargetCharacter"></option>
@@ -677,24 +647,18 @@
     </fieldset>
     <div id="standardFbxOptions">
       <label class="fbx-export-skin"><input type="checkbox" id="fbxWithSkin"> <span data-i18n="export.skin">包含蒙皮网格</span></label>
-      <p class="setting-help" data-i18n="export.skin_hint">带蒙皮时使用当前预览体型。仅用于重定向时，导出动画骨架即可。</p>
-      <label class="fbx-export-pose" for="fbxFirstPose">
-        <span data-i18n="export.reference">参考姿势</span>
-        <select id="fbxFirstPose" class="input">
-          <option value="none" data-i18n="export.none">不添加</option>
-          <option value="t">T Pose</option>
-          <option value="a">A Pose</option>
-        </select>
-      </label>
-      <p class="setting-help" data-i18n="export.reference_hint">参考姿势是 FBX 第 −1 帧的关键帧。Blender 默认导入后在第 0 帧，需切到姿态位置查看。</p>
-    </div>
-    <div class="field fbx-template hidden" id="fbxTemplateRow">
-      <label for="fbxTemplate" id="fbxTemplateLabel" data-i18n="export.metahuman_template">目标身体骨架（FBX）</label>
-      <div class="fbx-template-controls">
-        <input class="input" type="file" id="fbxTemplate" accept=".fbx">
-        <button type="button" class="btn-secondary small hidden" id="fbxTemplateClear" data-i18n="export.clear_template">清除模板</button>
+      <p class="setting-help" id="fbxSkinHint" data-i18n="export.skin_hint">带蒙皮时使用当前预览体型。仅用于重定向时，导出动画骨架即可。</p>
+      <div id="fbxReferenceOptions">
+        <label class="fbx-export-pose" for="fbxFirstPose">
+          <span data-i18n="export.reference">参考姿势</span>
+          <select id="fbxFirstPose" class="input">
+            <option value="none" data-i18n="export.none">不添加</option>
+            <option value="t">T Pose</option>
+            <option value="a">A Pose</option>
+          </select>
+        </label>
+        <p class="setting-help" data-i18n="export.reference_hint">参考姿势是 FBX 第 −1 帧的关键帧。Blender 默认导入后在第 0 帧，需切到姿态位置查看。</p>
       </div>
-      <p class="setting-help hidden" id="fbxTemplateHint" data-i18n="export.mixamo_hint">选择目标角色的原版 Mixamo FBX。导出会保留模板自带的蒙皮。留空时使用通用 Mixamo 骨架。</p>
     </div>
     <p class="error hidden" id="motionExportError" role="alert"></p>
     <div class="fbx-export-actions">
@@ -704,18 +668,25 @@
   </form>
 </dialog>
 
-<dialog id="previewCharacterDialog" class="fbx-export-dialog" aria-labelledby="previewCharacterTitle">
+<dialog id="previewCharacterDialog" class="fbx-export-dialog character-dialog" aria-labelledby="previewCharacterTitle">
   <form method="dialog">
-    <h3 class="card-title" id="previewCharacterTitle" data-i18n="character.title">预览角色</h3>
-    <p class="setting-help" data-i18n="character.guide">选择 PMX、VRM 或带蒙皮的 Mixamo / MetaHuman FBX。外置贴图请放在 PMX 或 FBX 旁边。</p>
+    <header class="character-dialog-head">
+      <h3 class="card-title" id="previewCharacterTitle" data-i18n="character.title">预览角色</h3>
+      <button class="editor-icon" id="characterDialogCancel" value="cancel" aria-label="取消" data-i18n-label="common.cancel">×</button>
+    </header>
     <label class="character-selection hidden" id="characterActorRow">
       <span data-i18n="character.actor">人物</span>
       <select class="input" id="characterActor"></select>
     </label>
-    <div class="character-selection">
-      <label for="characterLibrary" data-i18n="character.library">角色库</label>
-      <select class="input" id="characterLibrary"></select>
-      <button type="button" class="btn-secondary small character-remove" id="characterDelete" data-i18n="character.library_delete" disabled>删除</button>
+    <div class="character-library">
+      <div class="character-library-bar">
+        <button type="button" id="characterLibraryToggle" class="input character-library-toggle" aria-controls="characterLibraryGrid" aria-expanded="false">
+          <span class="character-section-label" data-i18n="character.library">角色库</span><span id="characterLibraryLabel"></span>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+        </button>
+        <button type="button" class="btn-secondary small character-remove" id="characterDelete" data-i18n="character.library_delete" disabled>删除</button>
+      </div>
+      <div class="character-library-grid hidden" id="characterLibraryGrid" role="group" data-i18n-label="character.library"></div>
     </div>
     <div class="character-delete-confirm hidden" id="characterDeleteConfirm" role="group" aria-labelledby="characterDeleteMessage">
       <p class="setting-help" id="characterDeleteMessage"></p>
@@ -724,22 +695,176 @@
         <button type="button" class="btn-secondary small character-remove" id="characterDeleteConfirmButton" data-i18n="character.library_confirm_button">删除角色</button>
       </div>
     </div>
-    <p class="setting-help" data-i18n="character.library_hint">在桌面版应用新角色时，模型和引用的贴图会存入 models/characters。角色选择和骨骼调节会自动记住。</p>
     <div class="character-file">
       <input type="file" id="pmxFolder" webkitdirectory multiple hidden>
       <input type="file" id="characterModelFile" accept=".pmx,.vrm,.fbx" hidden>
       <button type="button" class="btn-secondary small" id="characterBrowse" data-i18n="character.pick">选择模型文件…</button>
       <button type="button" class="btn-secondary small hidden" id="pmxBrowse" data-i18n="character.folder">选择模型文件夹…</button>
       <select class="input hidden" id="pmxFile" data-i18n-label="character.file" aria-label="角色模型"></select>
+      <span class="character-formats" aria-hidden="true">PMX · VRM · FBX</span>
     </div>
     <p class="setting-help" id="pmxStatus" role="status"></p>
+    <div class="character-delete-confirm hidden" id="characterRetargetPrompt" role="group" aria-labelledby="characterRetargetMessage">
+      <p class="setting-help" id="characterRetargetMessage" role="status"></p>
+      <div class="fbx-export-actions">
+        <button type="button" class="btn-secondary small" id="characterRetargetCancel" data-i18n="common.cancel">取消</button>
+        <button type="button" class="btn-primary small" id="characterRetargetStart" data-i18n="retarget.start">开始重定向</button>
+      </div>
+    </div>
     <p class="error hidden" id="pmxError" role="alert"></p>
     <div class="fbx-export-actions">
       <button type="button" class="btn-secondary small" id="pmxRestore" data-i18n="character.restore">恢复 SMPL-H</button>
-      <button class="btn-secondary small" id="characterDialogCancel" value="cancel" data-i18n="common.cancel">取消</button>
       <button class="btn-primary small" id="pmxApply" value="apply" disabled data-i18n="character.apply">应用角色</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="retargetDialog" class="fbx-export-dialog retarget-dialog" aria-labelledby="retargetTitle">
+  <header class="character-dialog-head" id="retargetGrip">
+    <span class="retarget-grip-mark" aria-hidden="true">⠿</span>
+    <div><h3 class="card-title" id="retargetTitle" data-i18n="retarget.title">重定向</h3><p id="retargetModel" class="setting-help"></p></div>
+    <details id="retargetShortcuts" class="retarget-shortcuts">
+      <summary data-i18n="retarget.shortcuts">快捷键</summary>
+      <div class="retarget-shortcut-panel">
+        <div class="retarget-shortcut-line"><span data-i18n="retarget.probe_rotate">旋转</span><button type="button" class="btn-secondary small" data-retarget-shortcut="rotate">R</button></div>
+        <div class="retarget-shortcut-line"><span data-i18n="retarget.probe_move">移动</span><button type="button" class="btn-secondary small" data-retarget-shortcut="move">G</button></div>
+        <div class="retarget-shortcut-line"><span data-i18n="retarget.probe_scale">缩放</span><button type="button" class="btn-secondary small" data-retarget-shortcut="scale">S</button></div>
+        <p id="retargetShortcutHint" class="retarget-small" role="status"></p>
+        <button type="button" id="retargetShortcutReset" class="btn-secondary small" data-i18n="retarget.shortcut_reset">恢复默认快捷键</button>
+      </div>
+    </details>
+    <button type="button" class="editor-icon" id="retargetClose" aria-label="取消" data-i18n-label="common.cancel">×</button>
+  </header>
+  <div class="retarget-columns">
+    <section class="retarget-source">
+      <div class="retarget-heading retarget-source-title">
+        <span>SMPL-H</span>
+        <select id="retargetReference" class="input" data-i18n-label="retarget.reference" data-i18n-title="retarget.reference_hint" aria-describedby="retargetRestPose">
+          <option value="auto" data-i18n="retarget.reference_auto">自动</option>
+          <option value="t">T Pose</option>
+          <option value="a">A Pose</option>
+        </select>
+      </div>
+      <div id="retargetRestPose" class="retarget-pose-badge" role="status"></div>
+      <div class="retarget-tabs">
+        <button type="button" class="btn-secondary small" data-retarget-tab="body" data-i18n="pose.body">身体</button>
+        <button type="button" class="btn-secondary small" data-retarget-tab="left" data-i18n="retarget.left_hand">左手</button>
+        <button type="button" class="btn-secondary small" data-retarget-tab="right" data-i18n="retarget.right_hand">右手</button>
+      </div>
+      <div id="retargetSourceDiagram" class="pose-diagram"></div>
+      <div id="retargetProgress" class="retarget-small retarget-source-notes" role="status"></div>
+      <details class="retarget-presets" id="retargetPresets" open>
+        <summary id="retargetPresetSummary" data-i18n="retarget.presets">重定向预设</summary>
+        <div class="retarget-preset-controls">
+          <div id="retargetPresetGallery" class="retarget-preset-gallery" role="group" data-i18n-label="retarget.presets"></div>
+          <div class="retarget-preset-row">
+            <div class="retarget-preset-actions">
+              <button type="button" class="btn-secondary small" id="retargetPresetLoad" data-i18n="retarget.preset_apply" disabled>载入并编辑</button>
+              <button type="button" class="btn-secondary small character-remove hidden" id="retargetPresetDelete" data-i18n="retarget.preset_delete">删除</button>
+              <button type="button" class="btn-secondary small hidden" id="retargetPresetSaveBuiltin" data-i18n="retarget.preset_save_builtin">保存到预设</button>
+              <button type="button" class="btn-secondary small hidden" id="retargetPresetReset" data-i18n="retarget.preset_reset">恢复默认</button>
+              <button type="button" class="btn-secondary small" id="retargetRebuildMap" data-i18n="retarget.restart_map">重新映射</button>
+            </div>
+            <div class="retarget-preset-new">
+              <label><input type="checkbox" id="retargetSavePreset"> <span data-i18n="retarget.save_preset">同时保存为可复用预设</span></label>
+              <label class="hidden" id="retargetPresetNameRow">
+                <input type="text" id="retargetPresetName" class="input" maxlength="80" autocomplete="off" data-i18n-label="retarget.preset_name" data-i18n-placeholder="retarget.preset_name">
+              </label>
+            </div>
+          </div>
+          <p class="retarget-small" id="retargetPresetHint" role="status"></p>
+          <p class="retarget-small hidden" id="retargetPresetGalleryStatus" role="status"></p>
+          <div class="retarget-preset-confirm hidden" id="retargetPresetConfirm" role="group" aria-labelledby="retargetPresetConfirmMessage">
+            <p id="retargetPresetConfirmMessage"></p>
+            <div class="retarget-preset-actions">
+              <button type="button" class="btn-secondary small" id="retargetPresetCancel" data-i18n="common.cancel">取消</button>
+              <button type="button" class="btn-secondary small" id="retargetPresetConfirmButton"></button>
+            </div>
+          </div>
+        </div>
+      </details>
+    </section>
+    <section class="retarget-target">
+      <div class="retarget-target-head">
+        <label id="retargetLinkLabel" class="retarget-heading" for="retargetSearch" data-i18n="retarget.target_3d">目标骨架 · 3D</label>
+        <div class="retarget-view-tools">
+          <button type="button" class="btn-secondary small" id="retargetSkin" aria-pressed="false" data-i18n="view.skin" data-i18n-title="view.skin_hint">蒙皮</button>
+          <button type="button" class="btn-secondary small" id="retargetCones" aria-pressed="false" data-i18n="retarget.cones" data-i18n-title="view.cones_hint">锥体</button>
+        </div>
+      </div>
+      <div id="retargetTargetDiagram" class="retarget-target-diagram">
+        <div id="retargetInspectSkin" class="hidden" aria-hidden="true"></div>
+        <canvas id="retargetTargetCanvas" tabindex="0" data-i18n-label="retarget.target_3d" aria-describedby="retargetNavigation"></canvas>
+        <div id="retargetHoverBone" class="retarget-hover-bone hidden" aria-hidden="true"></div>
+        <div id="retargetBoneChoices" class="retarget-pick-menu hidden" role="group" data-i18n-label="retarget.pick_overlap"></div>
+      </div>
+      <p id="retargetNavigation" class="retarget-navigation" aria-live="polite"></p>
+      <div class="retarget-search">
+        <input type="search" class="input" id="retargetSearch" autocomplete="off" data-i18n-placeholder="retarget.search" data-i18n-label="retarget.search">
+      </div>
+      <div id="retargetBoneList" class="retarget-bones" role="group" data-i18n-label="retarget.target"></div>
+    </section>
+    <section class="retarget-controls">
+      <div id="retargetIkModes" class="retarget-solve-mode hidden" role="group" aria-labelledby="retargetSolveLabel" aria-describedby="retargetIkModeHint">
+        <div class="retarget-solve-row">
+          <span id="retargetSolveLabel" data-i18n="retarget.solve_mode">求解方式</span>
+          <div class="retarget-tabs">
+            <button type="button" class="btn-secondary small" id="retargetModeFk">FK</button>
+            <button type="button" class="btn-secondary small" id="retargetModeIk">IK</button>
+          </div>
+        </div>
+        <p id="retargetIkModeHint" class="retarget-small" data-i18n="retarget.ik_unavailable">还未设置脚部 IK 控制器。</p>
+      </div>
+      <div class="retarget-calibration">
+        <p class="retarget-guide-step" id="retargetStep"></p>
+        <div class="retarget-heading" id="retargetJoint"></div>
+        <p id="retargetBinding" class="retarget-binding"></p>
+        <p id="retargetMatchStatus" class="retarget-small" role="status"></p>
+        <div class="retarget-guide-actions">
+          <button type="button" class="btn-primary small" id="retargetConfirm" data-i18n="retarget.confirm_next">确认并继续</button>
+          <button type="button" class="btn-secondary small" id="retargetNext" data-i18n="retarget.skip_step">跳到下一根</button>
+          <button type="button" class="btn-secondary small hidden" id="retargetSkipHand" data-i18n="retarget.guide_skip_hand">跳过这只手的手指</button>
+          <button type="button" class="btn-secondary small hidden" id="retargetUseAutoRoot" data-i18n="retarget.guide_use_auto_root">使用自动重心</button>
+          <button type="button" class="btn-secondary small hidden" id="retargetDiscard" data-i18n="retarget.discard_choice">取消选择</button>
+          <button type="button" class="btn-secondary small hidden" id="retargetClear" data-i18n="retarget.remove_match">取消匹配</button>
+        </div>
+        <p id="retargetMirrorStatus" class="retarget-small hidden" aria-live="polite"></p>
+        <details id="retargetOffsets" class="retarget-offsets" open>
+          <summary data-i18n="retarget.offsets">校正值</summary>
+          <div id="retargetAxes"></div>
+          <p id="retargetMoveHint" class="retarget-small hidden" data-i18n="retarget.pmx_move">此 PMX 骨骼不允许移动。</p>
+          <button type="button" class="btn-secondary small" id="retargetResetJoint" data-i18n="retarget.reset_offsets" data-i18n-title="pose.reset_joint">归零</button>
+        </details>
+        <details class="retarget-ik" id="retargetIk">
+          <summary data-i18n="retarget.ik">IK 控制器</summary>
+          <p id="retargetIkHint" class="retarget-small"></p>
+          <div id="retargetIkSlots"></div>
+        </details>
+        <div id="retargetMetrics" class="retarget-metrics retarget-small"></div>
+      </div>
+      <aside id="retargetWorkflow" class="retarget-workflow" aria-labelledby="retargetWorkflowTitle">
+        <div id="retargetWorkflowTitle" data-i18n="retarget.workflow_title">操作指引</div>
+        <ol>
+          <li data-i18n="retarget.workflow_source">先在左侧选 SMPL-H 骨骼。</li>
+          <li data-i18n="retarget.workflow_target">点选目标骨骼，或按名称搜索。</li>
+          <li data-i18n="retarget.workflow_confirm">确认匹配，继续处理下一根。</li>
+          <li data-i18n="retarget.workflow_finish">试用检查动作，再保存并应用。</li>
+        </ol>
+        <p id="retargetTutorialKeys" class="retarget-small"></p>
+      </aside>
+    </section>
+  </div>
+  <p class="error hidden" id="retargetError" role="alert"></p>
+  <p class="retarget-small retarget-save-hint" id="retargetSaveHint"></p>
+  <footer class="retarget-footer">
+    <button type="button" class="btn-secondary small" id="retargetAuto" data-i18n="retarget.auto">按名称匹配</button>
+    <button type="button" class="btn-secondary small" id="retargetMirror" aria-pressed="true" data-i18n="retarget.mirror" data-i18n-title="retarget.mirror_hint">自动镜像</button>
+    <button type="button" class="btn-secondary small" id="retargetUndo" aria-keyshortcuts="Control+Z Meta+Z" data-i18n="retarget.undo">撤销</button>
+    <button type="button" class="btn-secondary small" id="retargetPreview" data-i18n="retarget.preview">试用到视图</button>
+    <button type="button" class="btn-primary small" id="retargetSave" data-i18n="retarget.save">保存并应用</button>
+  </footer>
+  <button type="button" id="retargetResize" aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"
+    data-i18n-label="retarget.resize" data-i18n-title="retarget.resize"></button>
 </dialog>
 
 <script type="module" src="/static/js/main.js"></script>

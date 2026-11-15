@@ -6,14 +6,16 @@
 
 **[Windows ポータブル版をダウンロード](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest/download/FlowHMR-Windows.zip)** · [リリースノート](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest) · [FlowHMR の論文](https://arxiv.org/abs/2610.03691)
 
-## v0.3.5 の変更点
+## v0.3.6 の変更点
 
-- **CPU のみで推論。** Intel／AMD の x64 CPU で固定カメラと移動カメラの両方を使えます。HaMeR による指の補正には対応していません。
-- **対応 GPU を拡大。** AMD 内蔵 GPU、Radeon RX 5000、Intel XPU の実験的な実行環境を追加しました。対応する AMD 内蔵 GPU では、SAM の処理を CPU と GPU に分けて GPU メモリの使用量を減らせます。
-- **指定範囲だけで人物を検出。** 開始・終了フレームを変更した場合は新しい範囲で検出し直します。プレビューや複数人の位置合わせでは元動画のフレーム番号を維持します。
-- **キャラクターの読み込みを修正。** PMX、VRM、FBX を選択した後、アプリはローカルサービスに直接接続します。システムのプロキシがリクエストを遮る問題を解消しました（[Issue #7](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/issues/7)）。
+- **カスタムリターゲットとプリセット。** 移動やサイズ変更ができるパネルで 3D 骨格を選択します。ガイドは体から両手まで続き、左右の自動ミラーは既定で有効です。キャラクターの身長や手足の長さに合わせて動きを調整し、設定やプリセットを保存できます。両方ともサムネイルで選べます。
+- **現在のキャラクターに書き出し。** Mixamo と MetaHuman では、書き出し時にテンプレートを選び直す必要がありません。保存したリターゲットと補正を保持でき、Mixamo は汎用骨格も選べます。対応する PMX は IK／FK を切り替えられます。ルートの自動割り当てでは「センター」を優先し、使えない場合は「全ての親」を選びます。カスタム FBX をリターゲットした後は「現在のキャラクター FBX」で元の骨格を書き出し、スキンの有無を選べます。現在のキャラクター FBX は一人ずつ書き出し、複数人のシーンでは位置と登場タイミングを保持します。VRM は引き続き GLB と VRMA に書き出せます。
+- **汎用 VMD にキャラクターの補正を反映。** キャラクターを適用すると、標準の MMD ボーン名のまま、関節の回転・移動やルートの補正、足の IK／FK を保持します。キャラクター固有の体格や靴底の接地を保つ場合は、現在の PMX キャラクター向けに書き出してください。
+- **スロー再生を滑らかに。** タイムラインの表示フレームレートを変更して保存できます。スロー再生時は中間姿勢を補間します。元動画との同期や書き出しのタイミングは変わりません。
+- **AMD Radeon RX 6000（試験中）。** Windows 11 では GPU のアーキテクチャに合った ROCm を選べます。パッケージは確認済みですが、RX 6000 実機での一連のモーションキャプチャは未検証です。
+- **MCP の互換性。** 既存の 19 ツールとバックグラウンド書き出しの引数は従来どおりです。コントローラーを割り当てたカスタム FBX／VRM の IK を切り替えたり、使用中のデバイスバックエンドを確認したりできます。キャラクターの補正を焼き込む書き出しはデスクトップで行います。
 
-[リリースノート](../release-windows.md) · [v0.3.4：VRAM が少ない環境での複数人の位置合わせを修正](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/tag/windows-v0.3.4)
+[リリースノートの詳細](../release-windows.md) · [前バージョン v0.3.5](../release-windows-v0.3.5.md)
 
 ## 動作環境と対応デバイス
 
@@ -31,6 +33,7 @@
 | NVIDIA GeForce RTX 20 | CUDA 12.1 | 試験中 |
 | NVIDIA GeForce GTX 10 | CUDA 12.1 | 試験中 |
 | AMD Radeon RX 9000 / 7000 | [ROCm](../amd-rocm.md) | 検証済み |
+| AMD Radeon RX 6000 | [ROCm](../amd-rocm.md) | 試験中 |
 | AMD Radeon RX 5000 | [ROCm](../amd-rocm.md) | 試験中 |
 | AMD Radeon 内蔵 GPU（740M / 760M / 780M と一部の 800M を含む） | [ROCm](../amd-rocm.md) | 試験中（9950X の内蔵 GPU は検証済み。固定カメラを推奨） |
 | Intel Arc A／B、一部の Core Ultra の内蔵 Arc GPU | [Intel XPU](../windows.md) | 試験中（GPU は SAM の画像エンコードのみ） |
@@ -44,8 +47,8 @@ CPU のみのモードと Intel XPU では HaMeR による指の補正は利用�
 - **複数の人物をまとめて確認・書き出し。** 一つの動画から複数人を選べます。プレビューと FBX には、元動画での相対位置とそれぞれの登場タイミングが保持されます。過去のジョブはサムネイル付きの履歴から開き直せます。
 - **素材に合わせて動作を調整。** モーションの平滑化、足の接地補正、地面の高さを調整できます。より細かな指の動きが必要な場合は HaMeR を有効にします。既定では固定カメラを使い、カメラが大きく首振り、チルト、ロールする素材には移動カメラを選びます。
 - **ローカルで動作。** 推論環境とモデルは必要に応じてインストールし、モデルの読み込みは生成時に行います。セットアップ後はオフラインで処理できます。UI は简体中文、繁體中文、English、日本語、한국어、Русский、Français に対応し、最後に選んだ言語を記憶します。
-- **モーションの書き出し。** FlowHMR、Mixamo、MetaHuman、Maya AdvancedSkeleton の FBX、MMD VMD、VRM Animation（VRMA）、NPZ に対応します。FlowHMR と Mixamo の FBX ではスキンと **−1 フレーム**の T ポーズ／A ポーズを選べます。[書き出しガイド](../retarget-export.md)を参照してください。
-- **カスタムキャラクター。** PMX、VRM 0.x／1.0、スキン付きの Mixamo／MetaHuman FBX をプレビューできます。人物ごとにモデルとボーンの調整を保存でき、対応する PMX では IK／FK を切り替えられます。
+- **モーションの書き出し。** FlowHMR、Mixamo、MetaHuman、Maya AdvancedSkeleton 向けの FBX、MMD VMD、VRM Animation（VRMA）、NPZ に対応します。カスタム FBX の書き出しでは元の骨格と保存済みのモーション補正を保持し、スキンの有無を選べます。カスタムマッピング済みの VRM はスキン付きアニメーション GLB にも書き出せます。FlowHMR と汎用 Mixamo の FBX ではスキンや **−1 フレーム**の T ポーズ／A ポーズを選べます。[書き出しとリターゲットのガイド](../retarget-export.md)
+- **カスタムキャラクター。** PMX、VRM 0.x／1.0、スキン付きの Mixamo／MetaHuman FBX に対応し、人物ごとに別のキャラクターを割り当てられます。ボーンの対応付け、IK コントローラーの指定、回転と位置の調整に加え、保存したプリセットの読み込みや管理もできます。
 
 ## サンプル動画
 

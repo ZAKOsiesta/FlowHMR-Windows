@@ -6,14 +6,16 @@
 
 **[Windows 포터블 버전 다운로드](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest/download/FlowHMR-Windows.zip)** · [릴리스 노트](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest) · [FlowHMR 논문](https://arxiv.org/abs/2610.03691)
 
-## v0.3.5 변경 사항
+## v0.3.6 변경 사항
 
-- **CPU 전용 추론.** Intel 및 AMD x64 CPU에서 고정 카메라와 이동 카메라를 모두 사용할 수 있습니다. 이 모드에서는 HaMeR 손가락 보정을 지원하지 않습니다.
-- **GPU 지원 확대.** AMD 내장 GPU, Radeon RX 5000, Intel XPU용 실험 런타임을 추가했습니다. 호환되는 AMD 내장 GPU는 CPU와 SAM 처리를 나눠 GPU 메모리 사용량을 줄일 수 있습니다.
-- **선택한 구간만 인물 감지.** 시작 또는 끝 프레임을 바꾸면 새 범위를 다시 검사합니다. 미리보기와 다중 인물 위치 정렬에는 원본 동영상의 프레임 번호를 그대로 사용합니다.
-- **캐릭터 가져오기 오류 수정.** PMX, VRM, FBX를 선택하면 앱이 로컬 서비스에 직접 연결하므로 시스템 프록시가 요청을 가로막지 않습니다([Issue #7](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/issues/7)).
+- **사용자 지정 리타게팅과 프리셋.** 위치와 크기를 바꿀 수 있는 패널에서 3D 본을 선택합니다. 안내는 몸에서 양손까지 이어지며 자동 미러가 기본으로 켜집니다. 대상의 키와 팔다리 길이에 맞춰 동작을 조정하고 캐릭터와 프리셋을 저장할 수 있습니다. 둘 다 썸네일로 찾아볼 수 있습니다.
+- **현재 캐릭터로 내보내기.** Mixamo와 MetaHuman에서 내보낼 때 템플릿 파일을 다시 고를 필요가 없습니다. 저장한 리타게팅과 보정을 적용하며, Mixamo에서는 범용 골격도 선택할 수 있습니다. 호환 PMX는 IK와 FK를 지원합니다. 루트 자동 매핑은 `センター`를 먼저 찾고, 쓸 수 없으면 `全ての親`를 사용합니다. 사용자 지정 FBX를 리타게팅한 뒤에는 현재 캐릭터 FBX를 선택해 원본 골격을 내보내고 스킨 포함 여부를 정할 수 있습니다. 현재 캐릭터 FBX는 한 번에 한 명씩 내보내며, 다인 장면에서도 위치와 등장 시점을 유지합니다. VRM은 GLB와 VRMA 내보내기를 계속 지원합니다.
+- **범용 VMD에도 캐릭터 보정 적용.** 캐릭터를 적용하면 표준 MMD 본 이름을 유지하면서 관절 회전과 이동, 루트 보정, 발 IK/FK를 반영합니다. 캐릭터 고유의 비율과 발바닥 접지를 유지하려면 현재 PMX 캐릭터로 내보내세요.
+- **더 부드러운 느린 재생.** 타임라인 표시 프레임 속도를 변경하고 저장할 수 있습니다. 느리게 재생하면 중간 자세를 보간하며 원본 동영상과의 동기화와 내보내기 시간은 그대로 유지됩니다.
+- **AMD Radeon RX 6000(실험 중).** Windows 11에서 GPU 아키텍처에 맞는 ROCm 런타임을 선택할 수 있습니다. 패키지는 확인했으며 RX 6000 실기에서 전체 모션 캡처 과정은 아직 검증하지 않았습니다.
+- **MCP 호환성.** 기존 도구 19개와 백그라운드 내보내기 옵션은 그대로 호환됩니다. 컨트롤러를 지정한 사용자 지정 FBX·VRM의 IK를 전환하고 현재 장치 백엔드를 확인할 수 있습니다. 캐릭터 보정을 굽는 내보내기는 데스크톱에서 수행합니다.
 
-[릴리스 노트](../release-windows.md) · [v0.3.4: 저용량 VRAM 환경의 다중 인물 위치 정렬 수정](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/tag/windows-v0.3.4)
+[전체 릴리스 노트](../release-windows.md) · [이전 릴리스 v0.3.5](../release-windows-v0.3.5.md)
 
 ## 시스템 요구 사항 및 지원 장치
 
@@ -31,6 +33,7 @@
 | NVIDIA GeForce RTX 20 | CUDA 12.1 | 실험 중 |
 | NVIDIA GeForce GTX 10 | CUDA 12.1 | 실험 중 |
 | AMD Radeon RX 9000 / 7000 | [ROCm](../amd-rocm.md) | 검증 완료 |
+| AMD Radeon RX 6000 | [ROCm](../amd-rocm.md) | 실험 중 |
 | AMD Radeon RX 5000 | [ROCm](../amd-rocm.md) | 실험 중 |
 | AMD Radeon 내장 GPU(740M / 760M / 780M 및 일부 800M 포함) | [ROCm](../amd-rocm.md) | 실험 중(9950X 내장 GPU 검증 완료, 고정 카메라 권장) |
 | Intel Arc A / B 및 일부 Core Ultra 내장 Arc GPU | [Intel XPU](../windows.md) | 실험 중(GPU는 SAM 이미지 인코딩만 담당) |
@@ -44,8 +47,8 @@ CPU 전용 모드와 Intel XPU는 아직 HaMeR 손가락 보정을 지원하지 
 - **여러 인물을 함께 미리 보고 내보내기.** 같은 동영상에서 여러 명을 선택할 수 있습니다. 통합 미리보기와 FBX에는 원본 영상에서의 상대 위치와 각 인물의 등장 시점이 유지됩니다. 이전 작업은 썸네일이 있는 기록에서 다시 열 수 있습니다.
 - **영상에 맞춰 모션 조정.** 모션 스무딩, 발 접촉 보정, 바닥 높이를 조절할 수 있습니다. 더 자세한 손가락 모션이 필요하면 HaMeR를 켜세요. 기본값은 고정 카메라입니다. 카메라가 뚜렷하게 방향을 바꾸거나 위아래로 기울거나 회전할 때 이동 카메라를 선택하세요.
 - **로컬에서 실행.** 필요한 추론 환경과 모델을 설치하면 생성이 시작될 때만 모델을 불러옵니다. 설정이 끝나면 오프라인에서도 처리할 수 있습니다. 简体中文, 繁體中文, English, 日本語, 한국어, Русский, Français를 지원하며 앱을 다시 열면 마지막으로 선택한 언어를 사용합니다.
-- **동작 내보내기.** FlowHMR, Mixamo, MetaHuman, Maya AdvancedSkeleton FBX와 MMD VMD, VRM Animation(VRMA), NPZ를 지원합니다. FlowHMR 및 Mixamo FBX에서는 메시와 **−1 프레임**의 T 포즈 또는 A 포즈를 선택할 수 있습니다. [내보내기 안내](../retarget-export.md)를 참고하세요.
-- **사용자 지정 캐릭터.** PMX, VRM 0.x 또는 1.0, 스킨이 있는 Mixamo 또는 MetaHuman FBX를 미리 볼 수 있습니다. 사람마다 캐릭터와 본 조정을 저장하며, 호환 PMX는 IK와 FK를 전환할 수 있습니다.
+- **동작 내보내기.** FlowHMR, Mixamo, MetaHuman 및 Maya AdvancedSkeleton용 FBX, MMD VMD, VRM Animation(VRMA), NPZ를 지원합니다. 사용자 지정 FBX 내보내기는 캐릭터의 원본 골격과 저장된 동작 보정을 유지하며 스킨 포함 여부를 선택할 수 있습니다. 사용자 지정 매핑을 적용한 VRM은 스킨과 애니메이션을 포함한 GLB로도 내보낼 수 있습니다. FlowHMR과 범용 Mixamo FBX는 스킨과 **−1 프레임**의 T 포즈 또는 A 포즈를 선택할 수 있습니다. [내보내기 및 리타게팅 안내](../retarget-export.md)
+- **사용자 지정 캐릭터.** PMX, VRM 0.x 또는 1.0, 스킨이 있는 Mixamo·MetaHuman FBX를 지원하며 인물마다 다른 캐릭터를 지정할 수 있습니다. 본을 매핑하고 IK 컨트롤러, 회전 및 이동을 조정하거나 저장한 프리셋을 불러와 관리할 수 있습니다.
 
 ## 예제 동영상
 

@@ -26,7 +26,8 @@ export function initPreview(bus) {
   let origin = null;
   const clock = {
     get ready() { return origin !== null; },
-    frameAt: (time, fps = 30) => Math.floor((time - (origin ?? 0)) * fps + 1e-4),
+    positionAt: (time, fps = 30) => (time - (origin ?? 0)) * fps,
+    frameAt: (time, fps = 30) => Math.floor(clock.positionAt(time, fps) + 1e-4),
     timeOf: (frame, fps = 30) => (origin ?? 0) + frame / fps,
   };
 

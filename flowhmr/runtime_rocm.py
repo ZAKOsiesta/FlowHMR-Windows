@@ -36,11 +36,17 @@ _DGPU_PCI = {
     "744C": "gfx1100",  # Navi 31 (RX 7900)
     "747E": "gfx1101",  # Navi 32 (RX 7800 / 7700)
     "7480": "gfx1102",  # Navi 33 (RX 7600)
+    **dict.fromkeys(("73A5", "73AF", "73BF"), "gfx1030"),  # Navi 21 (RX 6800–6950)
+    "73DF": "gfx1031",  # Navi 22 (RX 6700 / 6750)
+    **dict.fromkeys(("73E2", "73EF", "73F0", "73FF"), "gfx1032"),  # Navi 23 (RX 6600 / 6650)
+    "743F": "gfx1034",  # Navi 24 (RX 6400 / 6500)
     **dict.fromkeys(("7310", "7312", "7318", "7319", "731A", "731B", "731E", "731F"), "gfx1010"),  # Navi 10
     "7360": "gfx1011", "7362": "gfx1011",  # Navi 12
     **dict.fromkeys(("7340", "7341", "7347", "734F"), "gfx1012"),  # Navi 14
 }
 RDNA1_ARCHES = frozenset(("gfx1010", "gfx1011", "gfx1012"))
+RX6000_ARCHES = frozenset(("gfx1030", "gfx1031", "gfx1032", "gfx1034"))
+EXPERIMENTAL_DISCRETE_ARCHES = RDNA1_ARCHES | RX6000_ARCHES
 _IGPU_PCI = {
     "13C0": "gfx1036", "164E": "gfx1036",  # Granite Ridge / Raphael
     "15BF": "gfx1103", "15C8": "gfx1103", "1900": "gfx1103", "1901": "gfx1103",  # Phoenix / Hawk Point
@@ -131,6 +137,28 @@ PROFILES = {profile.id: profile for profile in (
              (50756966, "377d6eebe6911780ecdbc0f11da1963d1b2137afff3864c3315334a2f86a99a7"),
              (140317, "5fabe94d01c5272a2e7c67a44c392eb0dcaed33807d620a19007fa05c44174b2"),
              models="RX 7600 XT / 7600", series="RX 7000", family=(_GFX11,)),
+    # These Windows binaries exist in the multi-arch index. Keep them opt-in
+    # until a real GPU passes the probe; the PyTorch support table is narrower.
+    _profile("gfx1030",
+             (51621233, "478c98056b958a744708493a1e84c3198a17cc996f0aa9f7f1a38482e244baf4"),
+             (44917126, "fa967efd0cc6f30f1edb984197a11fe6c3740897cf3a792c378e76fc52acece7"),
+             (118186, "c962170496eaea187fb3e6dde05401ad1d21ab461be8416150fc7fac1fbff440"),
+             models="RX 6950 XT / 6900 XT / 6800 XT / 6800", series="RX 6000"),
+    _profile("gfx1031",
+             (51651425, "112e4aad46c5423491db023f8b1f0e8460e26549b4ac543311850545c18b6b07"),
+             (45016300, "b39e7d80959182fb282a3c5aa617c18b77c383f151ac6f15e765683c577d0a46"),
+             (118189, "c48fc39d771c3623814cdaeb4f3d42294be518d21e9623dcceb14bc43b124463"),
+             models="RX 6750 XT / 6700 XT / 6700", series="RX 6000"),
+    _profile("gfx1032",
+             (51648246, "de2fe6e16db06d431e785f47c339331e6caadbb84d31f941a19c84860139ed5f"),
+             (45016457, "ef152f4b00d37b21ef286a0060ae2315d6a314643af72ff1677f428a5e185e5b"),
+             (118187, "7d0def3decaffb79245cb6bebd6424393abe9739e2c81914c715c24eeff5fe7f"),
+             models="RX 6650 XT / 6600 XT / 6600", series="RX 6000"),
+    _profile("gfx1034",
+             (51649602, "c13e7ed5e018a035399c29e82faed709cefa9f12eb457e43cbd140a2bbacf300"),
+             (45016318, "3c5e02373a41bc55c74b2557f5c0e8a9a4ac6e762ab955627c9961c3fe109a6d"),
+             (118196, "3a9ffef232d9b6fba5ce512f0096fb669dc9c00c38c6200603a4f91dd0936d98"),
+             models="RX 6500 XT / 6400", series="RX 6000"),
     # TheRock publishes these RDNA 1 packages; they are outside the 7.14 product matrix.
     _profile("gfx1010",
              (47210847, "002117b2186c6116e0c5561334d4da62103a1460169ecc73f50dbcc630a95aa7"),
@@ -334,8 +362,9 @@ def configure_windows_hip(torch, *, device, attention=False):
     os.environ.setdefault("MIOPEN_FIND_MODE", "FAST")
     torch.backends.cudnn.enabled = False
     if attention:
-        # AMD's RDNA 1 Windows wheels lack fused attention for these targets.
-        fused = gpu_arch(torch.cuda.get_device_properties(device)) not in RDNA1_ARCHES
+        # Start with math SDPA on older Windows Radeon targets. Do not assume
+        # a wheel for the architecture also contains working fused kernels.
+        fused = gpu_arch(torch.cuda.get_device_properties(device)) not in EXPERIMENTAL_DISCRETE_ARCHES
         torch.backends.cuda.enable_flash_sdp(fused)
         torch.backends.cuda.enable_mem_efficient_sdp(fused)
         torch.backends.cuda.enable_math_sdp(True)
@@ -393,7 +422,7 @@ def supports_bf16(torch, device):
         # Windows HIP can report BF16 support for devices that should use FP16.
         if sys.platform == "win32":
             arch = gpu_arch(torch.cuda.get_device_properties(device))
-            if arch == "gfx1036" or arch in RDNA1_ARCHES:
+            if arch == "gfx1036" or arch in EXPERIMENTAL_DISCRETE_ARCHES:
                 return False
         with torch.cuda.device(device):
             return torch.cuda.is_bf16_supported(including_emulation=False)

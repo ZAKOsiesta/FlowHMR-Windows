@@ -1,19 +1,38 @@
+import { sampleFrame } from './frame-sample.js';
+
 // Full pixel intrinsics, independent of the viewer's free-orbit projection.
 export function placedCameraTransform(transform, yaw = 0, offset = [0, 0, 0]) {
   const { scale: k, translation: b } = transform;
   const c = Math.cos(yaw), s = Math.sin(yaw);
   const rotated = [c*b[0] + s*b[2], b[1], -s*b[0] + c*b[2]];
-  return { scale: k, translation: rotated.map((x, i) => x + (1-k)*offset[i]) };
+  return { scale: k, translation: rotated.map((x, i) => x + (1-k)*offset[i]),
+    ...(transform.supported === false ? { supported: false } : {}) };
 }
 
 export function applySourceCamera(camera, data, frame, transform = { scale: 1, translation: [0, 0, 0] }) {
-  if (!data || frame < 0 || frame >= data.RT.length || !data.camera_valid[frame]) return false;
-  const R = data.RT[frame], K = data.K[frame], [h, w] = data.image_size_hw;
+  if (!data || transform.supported === false) return false;
+  const { visible, lo, hi, alpha } = sampleFrame(frame, data.RT.length, data.camera_valid, data.shot_ids);
+  if (!visible) return false;
+  let K = data.K[lo];
+  const [h, w] = data.image_size_hw;
   const { scale: k, translation: b } = transform;
-  const C = [0, 1, 2].map((j) => -(R[0][j] * R[0][3] + R[1][j] * R[1][3] + R[2][j] * R[2][3]) * k + b[j]);
+  const matrixAt = (index, matrix) => {
+    const R = data.RT[index];
+    const C = [0, 1, 2].map((j) => -(R[0][j] * R[0][3] + R[1][j] * R[1][3] + R[2][j] * R[2][3]) * k + b[j]);
+    return matrix.set(R[0][0], -R[1][0], -R[2][0], C[0],
+      R[0][1], -R[1][1], -R[2][1], C[1], R[0][2], -R[1][2], -R[2][2], C[2], 0, 0, 0, 1);
+  };
   camera.matrixAutoUpdate = false;
-  camera.matrix.set(R[0][0], -R[1][0], -R[2][0], C[0],
-    R[0][1], -R[1][1], -R[2][1], C[1], R[0][2], -R[1][2], -R[2][2], C[2], 0, 0, 0, 1);
+  matrixAt(lo, camera.matrix);
+  if (alpha) {
+    camera.matrix.decompose(camera.position, camera.quaternion, camera.scale);
+    const p = camera.position.clone(), q = camera.quaternion.clone(), s = camera.scale.clone();
+    matrixAt(hi, camera.matrix.clone()).decompose(p, q, s);
+    camera.position.lerp(p, alpha);
+    camera.quaternion.slerp(q, alpha);
+    camera.matrix.compose(camera.position, camera.quaternion, camera.scale);
+    K = K.map((row, i) => row.map((value, j) => value + alpha * (data.K[hi][i][j] - value)));
+  }
   camera.matrixWorld.copy(camera.matrix);
   camera.matrixWorldInverse.copy(camera.matrix).invert();
   camera.matrix.decompose(camera.position, camera.quaternion, camera.scale);

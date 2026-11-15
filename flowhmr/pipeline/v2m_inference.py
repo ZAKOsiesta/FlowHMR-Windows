@@ -20,6 +20,7 @@ from flowhmr.utils.runtime_capabilities import (
     EmptyPersonRangeError, LONG_MOTION_EXPERIMENTAL_THRESHOLD, cached_detection_matches, requested_frame_range,
 )
 from flowhmr.utils.runtime_image_io import write_image
+from flowhmr.utils.runtime_video_processing import find_ffmpeg
 
 
 # Enums & Dataclasses
@@ -914,11 +915,11 @@ class V2MInferenceEngine:
 
         def build_cmd(encoder_name: str) -> List[str]:
             cmd = [
-                "ffmpeg", "-y",
+                find_ffmpeg(), "-y",
                 "-i", video_path,
                 "-ss", str(start_time),
                 "-t", str(duration),
-                "-c:v", encoder_name, "-vsync", "1", "-pix_fmt", "yuv420p", "-an",
+                "-c:v", encoder_name, "-fps_mode", "cfr", "-pix_fmt", "yuv420p", "-an",
             ]
             if "libx264" in encoder_name or "libx265" in encoder_name:
                 cmd += ["-preset", "fast", "-crf", "22"]

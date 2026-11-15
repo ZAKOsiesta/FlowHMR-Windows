@@ -4,7 +4,6 @@ import importlib
 import json
 import os
 from pathlib import Path
-import shutil
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -81,13 +80,12 @@ def main():
             result[f"{device.type}_matmul_and_nms"] = "passed"
         except Exception as exc:
             result["errors"].append(f"{device_type}: {type(exc).__name__}: {exc}")
-        result["ffmpeg"] = shutil.which("ffmpeg")
-        if result["ffmpeg"] is None:
-            try:
-                import imageio_ffmpeg
-                result["ffmpeg"] = imageio_ffmpeg.get_ffmpeg_exe()
-            except Exception as exc:
-                result["errors"].append(f"FFmpeg: {exc}")
+        try:
+            from flowhmr.utils.runtime_video_processing import find_ffmpeg
+
+            result["ffmpeg"] = find_ffmpeg()
+        except Exception as exc:
+            result["errors"].append(f"FFmpeg: {exc}")
         for name in ["fbx", "motion_correction", "rgbmocap_correction"]:
             try:
                 importlib.import_module(name)

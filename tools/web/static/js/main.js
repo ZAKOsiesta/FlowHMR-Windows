@@ -95,7 +95,7 @@ window.addEventListener('flowhmr:server-update', event => {
 });
 const motionExport = initMotionExport(() => viewer.bodyVariant, viewer);
 const trim = initTrim({ ...preview, seek: viewer.seekSourceFrame });
-const history = initHistory({ onOpen: openJob, onRerun: rerun, onDeleted: clearDeletedJobs, onUpdated: syncExternalJobs });
+const history = initHistory({ onOpen: (id) => openJob(id, { focus: true }), onRerun: rerun, onDeleted: clearDeletedJobs, onUpdated: syncExternalJobs });
 const runtime = initRuntimeDialog();
 let params = null;
 
@@ -150,7 +150,7 @@ if (!initialJob && savedJob) {
   try { initialJob = await api.getJob(savedJob); } catch { /* job may have been deleted */ }
 }
 initialJob ??= jobs.find((job) => job.status === "done") ?? jobs[0];
-if (initialJob) void openJob(initialJob.id, true);
+if (initialJob) void openJob(initialJob.id, { restoreDraft: true });
 syncSubmit();
 if (info) confirmWorkspaceReady();
 initUIEvents();
@@ -253,7 +253,7 @@ async function rerun(jobId, overrides = {}) {
   syncSubmit();
   try {
     const id = await api.rerunJob(jobId, p);
-    await openJob(id);
+    await openJob(id, { focus: true });
   } finally {
     submitting = false;
     syncSubmit();
@@ -308,15 +308,18 @@ function syncExternalJobs(jobs, polling) {
   if (selected && (revision(selected) !== currentRevision || (polling && ACTIVE.has(selected.status)))) void poll();
 }
 
-async function openJob(id, restoreDraft = false) {
+async function openJob(id, { restoreDraft = false, focus = false } = {}) {
   if (upload.getFile()) upload.clear();
   resetJobView();
   currentJob = id;
-  restoreParameterDraft = restoreDraft === true;
+  restoreParameterDraft = restoreDraft;
   trim.begin();
   paramsShownFor = null;
   localStorage.setItem("flowhmr-last-job", id);
   history.setCurrent(id);
+  // The clicked history row keeps keyboard focus, so Space would re-open it instead
+  // of playing. Move the shortcut scope to the 3D viewport.
+  if (focus) viewer.focus();
   syncSubmit();
   await poll();
 }

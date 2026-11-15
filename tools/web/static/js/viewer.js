@@ -1380,6 +1380,9 @@ export function initViewer(preview) {
       frameDefaultView();
     },
     setStatus(text) { if (!state.meta) setText($("viewerEmpty"), text); },
+    // Playback shortcuts ignore focused controls, so a click on a history row must
+    // hand focus back to the viewport instead of leaving it on that button.
+    focus() { container.focus({ preventScroll: true }); },
     get jobId() { return state.jobId; },
   };
 }

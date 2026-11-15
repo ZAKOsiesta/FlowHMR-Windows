@@ -19,18 +19,53 @@ from flowhmr.utils.runtime_capabilities import detection_request_key
 _repo_root = osp.normpath(osp.join(osp.dirname(__file__), "..", ".."))
 
 
-def find_ffmpeg() -> str:
-    """Return an ffmpeg executable: $FFMPEG, then PATH, then the imageio-ffmpeg binary."""
-    exe = os.environ.get("FFMPEG") or shutil.which("ffmpeg")
-    if exe:
-        return exe
+def _ffmpeg_override() -> Optional[str]:
+    """Resolve $FFMPEG, which may name the executable or the usual "bin" directory."""
+    raw = os.environ.get("FFMPEG")
+    if not raw:
+        return None
+    path = osp.expanduser(raw.strip().strip('"'))
+    if osp.isfile(path):
+        return path
+    if osp.isdir(path):
+        for name in ("ffmpeg.exe", "ffmpeg"):
+            candidate = osp.join(path, name)
+            if osp.isfile(candidate):
+                return candidate
+    elif not osp.isabs(path):
+        candidate = shutil.which(path)
+        if candidate:
+            return candidate
+    # Returning a directory or a missing path makes CreateProcess fail with a
+    # misleading WinError 5, so fall through to the bundled binary instead.
+    print(f">>> ignoring $FFMPEG={raw!r}: no ffmpeg executable there")
+    return None
+
+
+def _bundled_ffmpeg() -> Optional[str]:
+    """Return the imageio-ffmpeg binary staged with this release, if present."""
     try:
         import imageio_ffmpeg
-        return imageio_ffmpeg.get_ffmpeg_exe()
-    except Exception as e:
-        raise RuntimeError(
-            "ffmpeg not found: install it system-wide, `pip install imageio-ffmpeg`, "
-            "or set $FFMPEG") from e
+        exe = imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return None
+    return exe if exe and osp.isfile(exe) else None
+
+
+def find_ffmpeg() -> str:
+    """Return the ffmpeg executable to launch.
+
+    The bundled imageio-ffmpeg binary wins by default so every install transcodes
+    with the version this release was tested against. $FFMPEG (an executable, its
+    "bin" directory, or a PATH command) is the explicit override, and PATH is only
+    a fallback for installs without the bundled binary.
+    """
+    for exe in (_ffmpeg_override(), _bundled_ffmpeg(), shutil.which("ffmpeg")):
+        if exe:
+            return exe
+    raise RuntimeError(
+        "ffmpeg not found: reinstall the bundled imageio-ffmpeg binary "
+        "(`pip install imageio-ffmpeg`), install ffmpeg system-wide, or set $FFMPEG")
 
 
 # Type definitions
@@ -270,7 +305,8 @@ class VideoProcessor:
             try:
                 subprocess.run(cmd, check=True, capture_output=True, text=True)
                 os.replace(tmp_path, backup_path)
-                print(f">>> video transcoding done (encoder: {enc if enc else 'copy'}): {backup_path}")
+                print(f">>> video transcoding done (using {ffmpeg_exe}, "
+                      f"encoder: {enc if enc else 'copy'}): {backup_path}")
                 return backup_path
             except subprocess.CalledProcessError as e:
                 err_msg = e.stderr.strip() if e.stderr else str(e)
@@ -279,7 +315,9 @@ class VideoProcessor:
 
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
-        raise RuntimeError(f"FFmpeg transcoding FAILED (tried encoders: {candidate_encoders}): {last_error}")
+        raise RuntimeError(
+            f"FFmpeg transcoding FAILED (using {ffmpeg_exe}; "
+            f"tried encoders: {candidate_encoders}): {last_error}")
 
     # Detect + Track
     def detect_and_track(

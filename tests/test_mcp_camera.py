@@ -66,6 +66,16 @@ class CameraMCPTests(unittest.TestCase):
                 self.assertFalse(list(root.glob('.flowhmr-*')))
                 self.assertNotIn('/api/upload',calls)
 
+    def test_ready_status_retains_gravity_degradation_without_expanded_report(self):
+        quality = dict(degraded=True, reason='weights_missing', fallback_shots=[1], total_shots=1)
+        def handler(r):
+            if r.url.path.endswith('/activity'):
+                return httpx.Response(200, json={'id':'receipt'})
+            return httpx.Response(200, json=dict(camera_state='ready', quality=quality))
+        tools = {t.name:t for t in build_tools(self.backend(handler), None)}
+        result = asyncio.run(tools['flowhmr_get_camera_status'].run({'job_id':'sample'}))
+        self.assertEqual(result.model_dump()['quality'], quality)
+
     def test_gap_zip_retry_works_without_masquerading_as_a_motion_file(self):
         for format_name in ['vmd','fbx','vrma']:
           payload=archive({f'motion.{format_name}':format_name.encode(),'motion-report.json':b'{}'})

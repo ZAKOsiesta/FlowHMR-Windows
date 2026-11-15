@@ -39,6 +39,8 @@ def camera_bundle(directory, format_name, joints, transform=None):
               'motion': gaps, 'camera': {'format': format_name},
               'source_world': 'paired_motion_y_up_metres',
               'required_aspect_ratio': float(camera.image_size_hw[1] / camera.image_size_hw[0])}
+    from .quality import read_quality
+    report['quality'] = read_quality(root)
     if (root / 'scene.json').exists():
         report['character_scale_policy'] = 'Camera uses the first selected character scale; different body sizes cannot all preserve the same projection.'
     detail = root / 'camera/report.json'
@@ -49,7 +51,7 @@ def camera_bundle(directory, format_name, joints, transform=None):
     with TemporaryDirectory(prefix='paired-', dir=folder) as temp:
         temp = Path(temp)
         camera.save(temp / 'camera.npz')
-        (temp / 'camera.json').write_text(json.dumps(camera.json(ground), ensure_ascii=False, allow_nan=False), encoding='utf-8')
+        (temp / 'camera.json').write_text(json.dumps({**camera.json(ground), 'quality': report['quality']}, ensure_ascii=False, allow_nan=False), encoding='utf-8')
         if format_name == 'vmd':
             from .camera_vmd import export_camera_vmd
             report['camera'] = export_camera_vmd(camera, joints, temp / 'camera.vmd')

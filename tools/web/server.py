@@ -2061,7 +2061,10 @@ def api_job(job_id):
         job["has_vmd"] = os.path.isfile(motion)
         job["has_vrma"] = job["has_vmd"]
         job["has_fbx"] = job["has_vmd"] and fbx_export_available(job_body_reference(job))
-        job['camera_state'] = CAMERA_TASKS.status(job_id)['camera_state']
+        camera_status = CAMERA_TASKS.status(job_id)
+        job.update(camera_state=camera_status['camera_state'], camera_quality=camera_status['quality'])
+        if camera_status['camera_state'] == 'ready':
+            job['camera_message'] = camera_status['message']
     canonical = os.path.join(job_dir(job_id), SUB, f"{SUB}_30fps.mp4")
     job["has_preview_video"] = os.path.isfile(canonical)
     if not job.get("source_frames") and job["status"] in ("done", "cancelled", "failed"):

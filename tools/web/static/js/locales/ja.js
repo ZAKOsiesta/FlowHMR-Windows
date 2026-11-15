@@ -989,5 +989,19 @@ export default Object.freeze({
   "retarget.preset_unavailable": "この骨格に対応するプリセットはありません。",
   "retarget.presets_marked": "リターゲットプリセット · 保存予定",
   "retarget.restart_map": "割り当てをやり直す",
-  "camera.custom_scale_unsupported": "このカスタム体型は上下と水平方向の移動倍率が異なるため、元映像のカメラ表示とキャラクター用カメラの同時書き出しには未対応です。プレビューと動作のみの書き出しは使用できます。"
+  "camera.custom_scale_unsupported": "このカスタム体型は上下と水平方向の移動倍率が異なるため、元映像のカメラ表示とキャラクター用カメラの同時書き出しには未対応です。プレビューと動作のみの書き出しは使用できます。",
+  "model_name.geocalib": "GeoCalib · 画像の重力方向",
+  "models.source_camera": "元映像カメラ · 地面の傾き",
+  "camera.degraded_ready": "カメラ準備完了（品質低下）",
+  "camera.gravity_weights_missing": "品質低下：GeoCalib の重みがなく、地面の傾きが不正確な可能性があります。「モデル」でダウンロードしてください。",
+  "camera.gravity_weights_corrupt": "品質低下：GeoCalib の重みが破損しています。地面の傾きが不正確な可能性があります。「モデル」で検証・再ダウンロードしてください。",
+  "camera.gravity_runtime_missing": "品質低下：画像重力のコンポーネントを読み込めません。地面の傾きが不正確な可能性があります。アプリを修復または更新してください。",
+  "camera.gravity_unsupported_device": "品質低下：このデバイスは画像重力の推定に非対応です。地面の傾きが不正確な可能性があります。対応する実行環境に切り替えてください。",
+  "camera.gravity_inference_failed": "品質低下：画像重力の推定に失敗しました。地面の傾きが不正確な可能性があります。詳細はカメラレポートに保存されています。",
+  "camera.gravity_static_camera": "品質低下：固定カメラモードでは画像重力を使用していません。地面の傾きが不正確な可能性があります。",
+  "camera.gravity_unstable": "品質低下：{total} ショット中 {count} ショットで安定した画像重力を得られず、地面の傾きが不正確な可能性があります。",
+  "camera.gravity_legacy_fallback": "この過去の結果は品質が低下しています。一部のショットは人物と地面から推定しており、地面の傾きが不正確な可能性があります。モデルの導入だけでは既存の結果は変わりません。",
+  "camera.gravity_unverified": "画像重力の検証記録がなく、地面の傾きの信頼性を確認できません。",
+  "server.geocalib_runtime_missing": "画像重力のコンポーネントがありません。アプリを修復または更新してください。元映像カメラの品質が低下します。",
+  "server.geocalib_unsupported_device": "このデバイスは画像重力に非対応のため、元映像カメラの品質が低下します。"
 });

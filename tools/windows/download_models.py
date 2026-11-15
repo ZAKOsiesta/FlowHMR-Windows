@@ -84,7 +84,7 @@ def main():
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--public-only", action="store_true", help="Legacy option: skip the perception downloads")
     mode.add_argument("--direct-only", action="store_true", help="Only YOLOX and the joint regressor")
-    mode.add_argument("--perception-only", action="store_true", help="Only SAM 3D Body and VGGT-Omega from ModelScope")
+    mode.add_argument("--perception-only", action="store_true", help="Only SAM 3D Body, VGGT-Omega and GeoCalib")
     args = parser.parse_args()
     files.ensure_model_folders()
     failures = []
@@ -108,6 +108,8 @@ def main():
     if not args.direct_only and not args.public_only:
         for repo, name, target, size, sha in sources.PERCEPTION_DOWNLOADS:
             fetch(sources.modelscope_file(repo, name), target, size, sha)
+        geo = sources.PUBLIC_ASSETS['geocalib'][0]
+        fetch(geo.urls[0], geo.relative, geo.size, geo.sha256)
     if files.smplh_reference() is None:
         entry, archive = sources.MANO_DOWNLOAD
         print(f"SMPL-H: sign in at {sources.MANO_URL} and download '{entry}' ({archive}).\n"

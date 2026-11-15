@@ -7,6 +7,7 @@ from zipfile import BadZipFile
 from .camera import Camera
 from .recovery import CameraCancelled
 from .runtime import camera_directory
+from .quality import read_quality, ready_message
 
 ACTIVE_CAMERA_STATES = frozenset(('queued', 'running', 'cancel_requested'))
 
@@ -40,7 +41,9 @@ class CameraTasks:
                 state = 'ready'
             elif state == 'ready':
                 state = 'none'
-        return dict(camera_state=state, message=job.get('camera_message', ''),
+        quality = read_quality(self.root(job_id)) if state == 'ready' else None
+        return dict(camera_state=state, message=ready_message(quality) if quality else job.get('camera_message', ''),
+                    quality=quality,
                     progress=job.get('camera_progress', 0), error=job.get('camera_error'),
                     started=job.get('camera_started'), finished=job.get('camera_finished'))
 
@@ -51,7 +54,7 @@ class CameraTasks:
             if status['camera_state'] in ACTIVE_CAMERA_STATES or status['camera_state'] == 'ready':
                 return status
             self.update(job_id, camera_state='queued', camera_message='等待恢复摄像机', camera_progress=0,
-                        camera_error=None, camera_started=None, camera_finished=None)
+                        camera_error=None, camera_quality=None, camera_started=None, camera_finished=None)
             self.enqueue(('camera', job_id))
             return self.status(job_id)
 
@@ -79,8 +82,9 @@ class CameraTasks:
             # A complete, atomically committed result wins over a late cancel.
             if not self.ready(job_id):
                 raise ValueError('摄像机结果未完整保存。')
+            quality = read_quality(self.root(job_id))
             self.update(job_id, camera_state='ready', camera_progress=100,
-                        camera_message='摄像机已就绪', camera_finished=time.time())
+                        camera_quality=quality, camera_message=ready_message(quality), camera_finished=time.time())
         except CameraCancelled:
             self.update(job_id, camera_state='cancelled', camera_message='摄像机计算已停止，人物动作已保留',
                         camera_error=None, camera_finished=time.time())

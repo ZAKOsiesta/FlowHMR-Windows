@@ -989,5 +989,19 @@ export default Object.freeze({
   "retarget.preset_unavailable": "沒有適用於目前骨架的預設。",
   "retarget.presets_marked": "重定向預設 · 將儲存",
   "retarget.restart_map": "重新映射",
-  "camera.custom_scale_unsupported": "此自訂體型的垂直與水平位移比例不同，暫不支援原片機位或角色配套攝影機；可繼續預覽並單獨匯出角色動作。"
+  "camera.custom_scale_unsupported": "此自訂體型的垂直與水平位移比例不同，暫不支援原片機位或角色配套攝影機；可繼續預覽並單獨匯出角色動作。",
+  "model_name.geocalib": "GeoCalib · 影像重力",
+  "models.source_camera": "原片機位 · 地面傾角",
+  "camera.degraded_ready": "攝影機已就緒（已降級）",
+  "camera.gravity_weights_missing": "已降級：缺少 GeoCalib 權重，地面傾角可能不準確。請在「模型」下載影像重力模型。",
+  "camera.gravity_weights_corrupt": "已降級：GeoCalib 權重損壞，地面傾角可能不準確。請在「模型」驗證並重新下載。",
+  "camera.gravity_runtime_missing": "已降級：影像重力元件無法載入，地面傾角可能不準確。請修復或更新應用程式。",
+  "camera.gravity_unsupported_device": "已降級：目前裝置不支援影像重力估計，地面傾角可能不準確。請切換支援的執行環境。",
+  "camera.gravity_inference_failed": "已降級：影像重力估計失敗，地面傾角可能不準確。詳細原因已保留於攝影機報告。",
+  "camera.gravity_static_camera": "已降級：固定相機模式未使用影像重力估計，地面傾角可能不準確。",
+  "camera.gravity_unstable": "已降級：{total} 個鏡頭中有 {count} 個未取得穩定影像重力，地面傾角可能不準確。",
+  "camera.gravity_legacy_fallback": "此歷史結果已降級：部分鏡頭使用人物與地面估計，地面傾角可能不準確。安裝模型不會自動變更既有結果。",
+  "camera.gravity_unverified": "此結果缺少影像重力驗證記錄，無法確認地面傾角的可靠性。",
+  "server.geocalib_runtime_missing": "缺少影像重力元件，請修復或更新應用程式；原片機位將降級。",
+  "server.geocalib_unsupported_device": "目前裝置不支援影像重力估計；原片機位將降級。"
 });

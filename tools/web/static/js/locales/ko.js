@@ -989,5 +989,19 @@ export default Object.freeze({
   "retarget.preset_unavailable": "이 스켈레톤에 맞는 프리셋이 없습니다.",
   "retarget.presets_marked": "리타게팅 프리셋 · 저장 예정",
   "retarget.restart_map": "새로 매핑",
-  "camera.custom_scale_unsupported": "이 사용자 지정 체형은 수직·수평 이동 배율이 달라 원본 카메라 보기와 캐릭터·카메라 동시 내보내기를 지원하지 않습니다. 캐릭터 미리 보기와 동작 단독 내보내기는 계속 사용할 수 있습니다."
+  "camera.custom_scale_unsupported": "이 사용자 지정 체형은 수직·수평 이동 배율이 달라 원본 카메라 보기와 캐릭터·카메라 동시 내보내기를 지원하지 않습니다. 캐릭터 미리 보기와 동작 단독 내보내기는 계속 사용할 수 있습니다.",
+  "model_name.geocalib": "GeoCalib · 이미지 중력",
+  "models.source_camera": "원본 카메라 · 지면 기울기",
+  "camera.degraded_ready": "카메라 준비 완료(품질 저하)",
+  "camera.gravity_weights_missing": "품질 저하: GeoCalib 가중치가 없어 지면 기울기가 부정확할 수 있습니다. 모델에서 다운로드하세요.",
+  "camera.gravity_weights_corrupt": "품질 저하: GeoCalib 가중치가 손상되어 지면 기울기가 부정확할 수 있습니다. 모델에서 검증 후 다시 다운로드하세요.",
+  "camera.gravity_runtime_missing": "품질 저하: 이미지 중력 구성 요소를 불러오지 못해 지면 기울기가 부정확할 수 있습니다. 앱을 복구하거나 업데이트하세요.",
+  "camera.gravity_unsupported_device": "품질 저하: 현재 장치는 이미지 중력 추정을 지원하지 않아 지면 기울기가 부정확할 수 있습니다. 지원되는 실행 환경으로 전환하세요.",
+  "camera.gravity_inference_failed": "품질 저하: 이미지 중력 추정에 실패하여 지면 기울기가 부정확할 수 있습니다. 자세한 원인은 카메라 보고서에 저장되었습니다.",
+  "camera.gravity_static_camera": "품질 저하: 고정 카메라 모드에서는 이미지 중력을 사용하지 않아 지면 기울기가 부정확할 수 있습니다.",
+  "camera.gravity_unstable": "품질 저하: {total}개 샷 중 {count}개에서 안정적인 이미지 중력을 얻지 못해 지면 기울기가 부정확할 수 있습니다.",
+  "camera.gravity_legacy_fallback": "이전 결과의 품질이 저하되었습니다. 일부 샷은 인물과 지면 추정을 사용하여 지면 기울기가 부정확할 수 있습니다. 모델 설치만으로 기존 결과가 변경되지는 않습니다.",
+  "camera.gravity_unverified": "이미지 중력 검증 기록이 없어 지면 기울기의 신뢰성을 확인할 수 없습니다.",
+  "server.geocalib_runtime_missing": "이미지 중력 구성 요소가 없습니다. 앱을 복구하거나 업데이트하세요. 원본 카메라 품질이 저하됩니다.",
+  "server.geocalib_unsupported_device": "현재 장치가 이미지 중력을 지원하지 않아 원본 카메라 품질이 저하됩니다."
 });

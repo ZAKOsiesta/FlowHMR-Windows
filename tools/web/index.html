@@ -312,6 +312,7 @@
       </div>
       <ol class="stages" id="stageList"></ol>
       <p class="job-msg" id="jobMsg"></p>
+      <p class="setting-help job-warning hidden" id="jobCameraWarning" role="status"></p>
       <details class="setting-help hidden" id="pairedCameraDetails">
         <summary data-i18n="camera.details">摄像机说明</summary>
         <div id="pairedCameraReport"></div>
@@ -386,6 +387,7 @@
     </div>
     <div class="viewer-wrap">
       <div id="viewer" tabindex="-1"></div>
+      <div class="source-camera-warning hidden" id="sourceCameraWarning" role="status"></div>
       <div class="viewport-label"><strong id="viewportName" data-i18n="view.user_perspective">用户透视</strong><span id="viewportObject" data-i18n="view.scene">场景集合</span></div>
       <div class="viewport-toolbar" aria-label="视窗工具" data-i18n-label="view.tools">
         <button type="button" class="editor-icon" data-mouse-mode="rotate" aria-pressed="false" aria-label="旋转视图" title="左键旋转，中键平移" data-i18n-label="view.rotate" data-i18n-title="view.rotate_hint"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15.5 6.5A6.4 6.4 0 1 0 16 12M15.5 2.5v4h-4"/></svg></button>

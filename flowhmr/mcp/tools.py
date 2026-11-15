@@ -147,6 +147,7 @@ def build_tools(backend, exports):
 
         A failed camera leaves the completed motion available. Confidence is not physical
         calibration. ready is the completion signal; queued/running are not completion.
+        Always inspect quality.degraded and quality.reason: ready may use fallback gravity.
         """
         status=await backend.request('GET', f'/api/jobs/{job_id}/camera/status')
         if include_report and status['camera_state']=='ready':

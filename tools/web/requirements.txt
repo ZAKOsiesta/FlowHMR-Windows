@@ -24,3 +24,5 @@ pillow
 termcolor                  # DINOv3 hub code (SAM 3D Body backbone)
 pytorch-lightning>=2.0
 huggingface_hub>=0.30,<1.0
+# GeoCalib image gravity (inference source is vendored with the application).
+kornia==0.8.1

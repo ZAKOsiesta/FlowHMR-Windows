@@ -10,3 +10,12 @@
 ## Autodesk FBX runtime notice
 
 This software contains Autodesk® FBX® code developed by Autodesk, Inc. Copyright 2019 Autodesk, Inc. All rights, reserved. Such code is provided “as is” and Autodesk, Inc. disclaims any and all warranties, whether express or implied, including without limitation the implied warranties of merchantability, fitness for a particular purpose or non-infringement of third party rights. In no event shall Autodesk, Inc. be liable for any direct, indirect, incidental, special, exemplary, or consequential damages (including, but not limited to, procurement of substitute goods or services; loss of use, data, or profits; or business interruption) however caused and on any theory of liability, whether in contract, strict liability, or tort (including negligence or otherwise) arising in any way out of such code.
+## GeoCalib
+
+GeoCalib inference source is included in `third_party/geocalib_inference` from
+https://github.com/cvg/GeoCalib at commit `1dedb29f94fc11b896c5f572005978aeebccd67f`.
+Its Apache-2.0 license and original source headers accompany the files. See the
+local README and manifest for the selected inference subset. The pinhole model
+is downloaded separately from the author's v1.0 release and verified before use.
+Kornia 0.8.1 and Kornia-rs 0.1.9 are installed as runtime dependencies; their
+distribution metadata and licenses are retained in packaged environments.

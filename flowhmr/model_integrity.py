@@ -154,7 +154,7 @@ def unverified_torch_weights(paths):
 def verify(deep: bool = False, *, required_paths=None) -> list[Verdict]:
     """Check active required models and any installed optional model files."""
     required = tuple(required_paths if required_paths is not None else files.core_model_paths())
-    optional = (*files.HAMER_FILES, *files.MANO_FILES, files.SMPLH_FILES["male"], files.SMPLH_FILES["female"])
+    optional = (files.GEOCALIB, *files.HAMER_FILES, *files.MANO_FILES, files.SMPLH_FILES["male"], files.SMPLH_FILES["female"])
     paths = dict.fromkeys(Path(path) for path in required)
     for relative in optional:
         path = files.resolve_model(relative)

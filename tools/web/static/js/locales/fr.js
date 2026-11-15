@@ -989,5 +989,19 @@ export default Object.freeze({
   "retarget.preset_unavailable": "Aucun préréglage ne correspond à ce squelette.",
   "retarget.presets_marked": "Préréglages · Enregistrement prévu",
   "retarget.restart_map": "Recommencer le mappage",
-  "camera.custom_scale_unsupported": "Ce profil personnalisé applique des échelles différentes aux déplacements verticaux et horizontaux. La vue caméra source et l’export caméra avec ce personnage sont indisponibles. L’aperçu et l’export du mouvement seul restent disponibles."
+  "camera.custom_scale_unsupported": "Ce profil personnalisé applique des échelles différentes aux déplacements verticaux et horizontaux. La vue caméra source et l’export caméra avec ce personnage sont indisponibles. L’aperçu et l’export du mouvement seul restent disponibles.",
+  "model_name.geocalib": "GeoCalib · Gravité de l’image",
+  "models.source_camera": "Caméra source · Inclinaison du sol",
+  "camera.degraded_ready": "Caméra prête (mode dégradé)",
+  "camera.gravity_weights_missing": "Mode dégradé : poids GeoCalib absents, inclinaison du sol potentiellement incorrecte. Téléchargez le modèle dans Modèles.",
+  "camera.gravity_weights_corrupt": "Mode dégradé : poids GeoCalib endommagés, inclinaison du sol potentiellement incorrecte. Vérifiez puis retéléchargez-les dans Modèles.",
+  "camera.gravity_runtime_missing": "Mode dégradé : composants de gravité indisponibles, inclinaison du sol potentiellement incorrecte. Réparez ou mettez à jour l’application.",
+  "camera.gravity_unsupported_device": "Mode dégradé : appareil incompatible avec l’estimation de gravité, inclinaison du sol potentiellement incorrecte. Changez d’environnement.",
+  "camera.gravity_inference_failed": "Mode dégradé : échec de l’estimation de gravité, inclinaison du sol potentiellement incorrecte. Consultez le rapport de caméra.",
+  "camera.gravity_static_camera": "Mode dégradé : la caméra fixe n’utilise pas la gravité de l’image ; l’inclinaison du sol peut être incorrecte.",
+  "camera.gravity_unstable": "Mode dégradé : gravité instable pour {count} plans sur {total} ; l’inclinaison du sol peut être incorrecte.",
+  "camera.gravity_legacy_fallback": "Ancien résultat dégradé : certains plans utilisent le corps et le sol pour estimer la gravité. L’inclinaison peut être incorrecte. Installer le modèle ne modifie pas les résultats enregistrés.",
+  "camera.gravity_unverified": "Aucune vérification de gravité n’est enregistrée ; la fiabilité de l’inclinaison du sol est inconnue.",
+  "server.geocalib_runtime_missing": "Composants de gravité absents. Réparez ou mettez à jour l’application ; la caméra source fonctionnera en mode dégradé.",
+  "server.geocalib_unsupported_device": "Cet appareil ne prend pas en charge la gravité de l’image ; la caméra source fonctionnera en mode dégradé."
 });

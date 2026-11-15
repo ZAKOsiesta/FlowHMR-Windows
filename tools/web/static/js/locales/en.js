@@ -989,5 +989,19 @@ export default Object.freeze({
   "retarget.preset_unavailable": "No presets match this skeleton.",
   "retarget.presets_marked": "Retargeting presets · Will save",
   "retarget.restart_map": "Start a new mapping",
-  "camera.custom_scale_unsupported": "This custom mapping scales vertical and horizontal travel differently. Source-camera view and paired character camera export are unavailable; character preview and motion-only export remain available."
+  "camera.custom_scale_unsupported": "This custom mapping scales vertical and horizontal travel differently. Source-camera view and paired character camera export are unavailable; character preview and motion-only export remain available.",
+  "model_name.geocalib": "GeoCalib · Image gravity",
+  "models.source_camera": "Source camera · Ground tilt",
+  "camera.degraded_ready": "Camera ready (degraded)",
+  "camera.gravity_weights_missing": "Degraded: GeoCalib weights are missing; ground tilt may be inaccurate. Download the image-gravity model in Models.",
+  "camera.gravity_weights_corrupt": "Degraded: GeoCalib weights are damaged; ground tilt may be inaccurate. Verify and download them again in Models.",
+  "camera.gravity_runtime_missing": "Degraded: Image-gravity components could not load; ground tilt may be inaccurate. Repair or update the application.",
+  "camera.gravity_unsupported_device": "Degraded: This device does not support image-gravity estimation; ground tilt may be inaccurate. Switch to a supported runtime.",
+  "camera.gravity_inference_failed": "Degraded: Image-gravity estimation failed; ground tilt may be inaccurate. Details are saved in the camera report.",
+  "camera.gravity_static_camera": "Degraded: Static-camera mode did not use image gravity; ground tilt may be inaccurate.",
+  "camera.gravity_unstable": "Degraded: {count} of {total} shots lack stable image gravity; ground tilt may be inaccurate.",
+  "camera.gravity_legacy_fallback": "This older result is degraded: some shots use body and ground estimates. Ground tilt may be inaccurate. Installing the model does not change saved results.",
+  "camera.gravity_unverified": "This result has no image-gravity verification record; ground-tilt reliability is unknown.",
+  "server.geocalib_runtime_missing": "Image-gravity components are missing. Repair or update the application; source-camera recovery will be degraded.",
+  "server.geocalib_unsupported_device": "This device does not support image gravity; source-camera recovery will be degraded."
 });

@@ -85,12 +85,17 @@ def copy_runtime(target, prerequisites, *, bundle_cuda=False):
         mcp_version = None
     if mcp_version != "1.28.0":
         raise RuntimeError("Install the locked Windows requirements before staging the MCP runtime.")
+    for dependency, expected in [('kornia', '0.8.1'), ('kornia_rs', '0.1.9')]:
+        if version(dependency) != expected:
+            raise RuntimeError('Install the locked GeoCalib dependencies before staging the runtime.')
     if (sys.platform != "win32" or sys.version_info[:2] != (3, 10) or struct.calcsize("P") != 8
             or version("torch") != "2.8.0+cu128" or version("torchvision") != "0.23.0+cu128"
             or version("imageio-ffmpeg") != "0.8.1"):
         raise RuntimeError("Build from the tested Windows Python 3.10 x64 cu128 environment.")
     base = Path(sys.base_prefix).resolve()
     site = Path(sys.prefix) / "Lib/site-packages"
+    if any(not (site / package).is_dir() for package in ('kornia', 'kornia_rs')):
+        raise RuntimeError('GeoCalib dependencies must be installed in the environment being packaged, not supplied by PYTHONPATH.')
     # Always stage the known x64 runtime from the verified build input.
     fbx_binding = binding_from_wheel((prerequisites / FBX_WHEEL_NAME).read_bytes())
 

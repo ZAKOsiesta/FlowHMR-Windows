@@ -125,6 +125,7 @@ def build_camera(directory, job, inspection, acquire_sam, device, *, check=lambd
                  notify=lambda message, progress: None, release_cuda=None):
     from contextlib import nullcontext
     from .gravity import image_gravity
+    from .quality import camera_quality
     from .shared import build_shared_camera
     directory = Path(directory)
     if job.get('person_batch') == job['id']:
@@ -145,6 +146,7 @@ def build_camera(directory, job, inspection, acquire_sam, device, *, check=lambd
     meta_path = folder / 'inputs.json'
     linked = directory / 'input/linked/camera_inputs.npz'
     linked_meta = linked.with_suffix('.json')
+    gravity_diagnostic = dict(status='unavailable', reason='static_camera') if job['params'].get('static_camera') else {}
     if linked.exists() and linked_meta.exists():
         meta = json.loads(linked_meta.read_text(encoding='utf8'))
         if meta['motion_sha256'] != motion_hash or meta['sha256'] != digest(linked):
@@ -156,7 +158,7 @@ def build_camera(directory, job, inspection, acquire_sam, device, *, check=lambd
             first = int(z['track_start'])
         shots = meta['shots']
         gravity = {} if job['params'].get('static_camera') else image_gravity(
-            directory/'input/input_30fps.mp4', rt, K, shots, first, folder, device, check, notify)
+            directory/'input/input_30fps.mp4', rt, K, shots, first, folder, device, check, notify, diagnostics=gravity_diagnostic)
         source = dict(raw_camera='linked_shot_cache', observations_reused=True, generation_calls=0)
     elif archive.exists() and meta_path.exists():
         meta = json.loads(meta_path.read_text(encoding='utf8'))
@@ -168,6 +170,7 @@ def build_camera(directory, job, inspection, acquire_sam, device, *, check=lambd
             rt, K, points, hw = (z[k] for k in ('RT', 'K', 'points', 'image_size_hw'))
         shots = meta['shots']
         gravity = {int(k): v for k, v in meta['gravity'].items()}
+        gravity_diagnostic = dict(status='archived')
         source = dict(raw_camera='archived_inputs', observations_reused=True, archive_sha256=meta['sha256'])
     else:
         import cv2
@@ -204,7 +207,7 @@ def build_camera(directory, job, inspection, acquire_sam, device, *, check=lambd
             points, reused = _observations(folder, video, boxes, K, valid, first, acquire_sam, identity, check, notify)
         shots = [dict(id=0, start=0, end=len(joints))]
         gravity = {} if job['params'].get('static_camera') else image_gravity(
-            video, rt, K, shots, first, folder, device, check, notify)
+            video, rt, K, shots, first, folder, device, check, notify, diagnostics=gravity_diagnostic)
         source = dict(raw_camera=mode, observations_reused=reused, observations_identity=identity)
     camera, report = recover_camera(rt, K, joints, points, valid, shots, hw,
         gravity=gravity, track_start=first, check=check, notify=notify)
@@ -212,6 +215,8 @@ def build_camera(directory, job, inspection, acquire_sam, device, *, check=lambd
     if digest(directory / 'motion.npz') != motion_hash:
         raise ValueError('相机计算期间人物动作已变化，请重新计算。')
     report.update(source=source, motion_sha256=motion_hash, body_reference=job.get('body_reference') or 'neutral')
+    report['gravity'] = gravity_diagnostic
+    report['quality'] = camera_quality(report)
     save_json(folder / 'report.json', report)
     check()
     save_npz(folder / 'camera.npz', **camera.arrays())

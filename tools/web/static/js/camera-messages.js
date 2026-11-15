@@ -3,6 +3,7 @@ import { message as m } from './i18n.js';
 const fixed = new Map(Object.entries({
   '等待恢复摄像机':'queued', '正在停止摄像机计算':'cancel_requested',
   '摄像机已就绪':'ready', '摄像机计算已停止，人物动作已保留':'cancelled',
+  '摄像机已就绪（已降级，地面倾角可能不准确）':'degraded_ready',
   '摄像机恢复失败，可重试':'failed', '摄像机计算已中断':'failed',
   '读取已完成的人物动作':'reading', '已复用任务的原始相机观测':'reuse_camera',
   '已复用人物观测，动作保持不变':'reuse_observations', '估计画面重力方向':'gravity',
@@ -32,5 +33,13 @@ export function multishotMessage(value) {
   return null;
 }
 export function cameraStatusMessage(status) {
+  if (status.camera_state === 'ready' && status.quality?.degraded) return m('camera.degraded_ready');
   return multishotMessage(status.message) ?? m(`camera.${status.camera_state ?? 'none'}`);
+}
+export function cameraQualityMessage(quality) {
+  if (!quality?.degraded) return '';
+  const key = ['weights_missing', 'weights_corrupt', 'runtime_missing', 'unsupported_device',
+    'inference_failed', 'static_camera', 'unstable', 'legacy_fallback', 'unverified'].includes(quality.reason)
+    ? quality.reason : 'unverified';
+  return m(`camera.gravity_${key}`, {count:quality.fallback_shots?.length ?? 0, total:quality.total_shots ?? 0});
 }

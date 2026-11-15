@@ -1,0 +1,15 @@
+{
+  "revision": "1dedb29f94fc11b896c5f572005978aeebccd67f",
+  "files": {
+    "geocalib/__init__.py": "591460c45ec02c688a15c9f4edfccd757d5c42cbf9b6a044f116b49a171baade",
+    "geocalib/camera.py": "9eb13101a4ac8b017fb71dd233bcc118fc38b0944ca836616d32a54aec43f533",
+    "geocalib/extractor.py": "228c4b4e548a8d3d87b005c84010347d633e9162f03ba021953f95633653ecf1",
+    "geocalib/geocalib.py": "6f15d45124d5ef1a61417a7ac01e2cb99cdeaabfa24f7982db1fe36a74c365a4",
+    "geocalib/gravity.py": "b209542e8b943992c46588cf4e6f90ada700354052db57739e9233da08dbc850",
+    "geocalib/lm_optimizer.py": "2b77981e03f658b085efd874d1066a22ad8ad6fc4d762d7d39e524eabac74359",
+    "geocalib/misc.py": "2bffd2562d31bfcfecdf9fd50997d2d9ebaa53784169c258a77b3909493388fa",
+    "geocalib/modules.py": "23836edf4d6ed6b0896788d904511da444168888c2825a6111be203b86467e34",
+    "geocalib/perspective_fields.py": "40fe2391dec3210d49da1a6abcb11e4d16d304c362ec0bcfb1e0048622304bf5",
+    "geocalib/utils.py": "523b509e7ca2365e886ddaedc72790ed34201e22efdc2901d80fb56c91b8b3cb"
+  }
+}

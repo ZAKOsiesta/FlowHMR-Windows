@@ -115,3 +115,5 @@ sse-starlette==3.5.1
 starlette==1.7.0
 typing-inspection==0.4.5
 uvicorn==0.54.0
+kornia==0.8.1
+kornia_rs==0.1.9

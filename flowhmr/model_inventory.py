@@ -33,6 +33,13 @@ def _item(key, name, paths, folder, links, *, required=True, issue=None, issue_c
 
 
 def model_inventory(device, ckpt=None, config=None):
+    from .geocalib_setup import runtime_issue
+    geo_issue = runtime_issue(device)
+    geo = _item('geocalib', 'GeoCalib · 图像重力', (files.resolve_model(files.GEOCALIB),),
+                'models/geocalib', [('官方权重', sources.GEOCALIB_URL)], required=False,
+                issue='图像重力组件不可用；原片机位将降级。' if geo_issue else None,
+                issue_code=f'geocalib_{geo_issue}' if geo_issue else None)
+    geo['role'] = 'source_camera'
     hamer_paths, issue_code, issue = hamer_model_details(device)
     bundle = tuple(map(files.resolve_model, (files.SMPLH_FILES["female"], files.SMPLH_FILES["male"], *files.MANO_FILES)))
     mano_link = [("MANO 官网下载（需登录）", sources.MANO_URL)]
@@ -57,6 +64,7 @@ def model_inventory(device, ckpt=None, config=None):
               [("魔搭下载", f"{sources.MODELSCOPE}/models/{sources.SAM_REPO}")]),
         _item("vggt", "VGGT-Omega", (files.resolve_model(files.VGGT),), "models/vggt-omega",
               [("魔搭下载", f"{sources.MODELSCOPE}/models/{sources.VGGT_REPO}")]),
+        geo,
         _item("joint-regressor", "SMPL 关节回归文件", (files.resolve_model(files.JOINT_REGRESSOR),),
               "models/body_models", [("直接下载", sources.REGRESSOR_URL)]),
         mano,

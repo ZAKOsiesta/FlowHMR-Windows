@@ -44,7 +44,7 @@ export function initModelDialog(refreshInventory) {
       badge.dataset.state = item.status;
       const name = el("span", "model-name");
       name.append(el("strong", "", groupName(item.id, item.name)),
-        el("span", "model-role", m(item.required ? "models.required" : "models.optional")));
+        el("span", "model-role", m(item.role === 'source_camera' ? 'models.source_camera' : item.required ? "models.required" : "models.optional")));
       const actions = el("div", "model-row-actions");
       actions.append(badge);
       if (downloadable.has(item.id)) {

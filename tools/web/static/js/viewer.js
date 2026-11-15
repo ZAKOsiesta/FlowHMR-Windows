@@ -8,6 +8,7 @@ import * as api from "./api.js";
 import { initPreviewCharacter } from "./preview-character.js";
 import { applySourceCamera, sourceViewport, placedCameraTransform } from './paired-camera.js';
 import { sampleFrame, sameFrameSegment } from './frame-sample.js';
+import { cameraQualityMessage } from './camera-messages.js';
 
 const BODY_STORAGE = "flowhmr-body-variant";
 const MOUSE_MODE_STORAGE = "flowhmr-mouse-mode";
@@ -280,6 +281,7 @@ export function initViewer(preview) {
   function setProjection(next) {
     if (sourceView) {
       sourceView = false;
+      show('sourceCameraWarning', false);
       camera = orbitCamera;
       controls.object = camera;
       controls.enabled = true;
@@ -333,6 +335,8 @@ export function initViewer(preview) {
   }
   function updateSourceCamera() {
     if (!sourceView || !cameraData || !state.meta) return;
+    setText($('sourceCameraWarning'), cameraQualityMessage(cameraData.quality));
+    show('sourceCameraWarning', !!cameraData.quality?.degraded);
     sourceFrameValid = applySourceCamera(recoveredCamera, cameraData,
       sourceStart(state.meta) + presentationFrame(state.visualFrame) - cameraData.track_start, cameraTransform());
     setText($('viewportName'), m(sourceFrameValid ? 'view.source_camera' : 'view.source_camera_gap'));

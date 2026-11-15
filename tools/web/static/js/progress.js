@@ -2,7 +2,7 @@
 import { $, show, el, formatSeconds, statusLabel, jobLabel } from "./utils.js";
 import { localize, message as m, serverMessage, setAttr, setText, t } from "./i18n.js";
 import { getCameraReport } from './api.js';
-import { multishotMessage, cameraStatusMessage } from './camera-messages.js';
+import { multishotMessage, cameraStatusMessage, cameraQualityMessage } from './camera-messages.js';
 
 // Older histories and older runtimes carry human-readable progress strings.
 // Prefer structured message_code/message_params when present.
@@ -245,6 +245,8 @@ export function initProgress() {
       setText($("jobMsg"), () => [jobMessage(job), job.camera_state && job.camera_state!=='none'
         ? localize(cameraStatusMessage({camera_state:job.camera_state,message:job.camera_message})) : ''].filter(Boolean).join(' · '));
       cameraJob = job;
+      setText($('jobCameraWarning'), cameraQualityMessage(job.camera_quality));
+      show('jobCameraWarning', job.camera_state === 'ready' && !!job.camera_quality?.degraded);
       show(details, job.camera_state === 'ready');
       void renderCameraReport();
       setText($("jobLongMotion"), job.long_motion_frames

@@ -42,6 +42,8 @@ _ASSETS = {name: asset for name, asset in model_integrity.published_assets().ite
            if name != files.FLOWHMR_CONFIG}
 _HAMER_LAYOUTS = {asset.relative: name.casefold() for name, asset in sources.HAMER_MEMBERS.items()}
 _MODEL_NAMES = {Path(relative).name.casefold() for group in _GROUPS.values() for relative in group}
+_ALIASES = {files.GEOCALIB: ('geocalib-pinhole.tar',)}
+_MODEL_NAMES.update(name for names in _ALIASES.values() for name in names)
 _SMPLH_SHAPES = {
     "f.npy": (13776, 3), "J_regressor.npy": (52, 6890), "kintree_table.npy": (2, 52),
     "posedirs.npy": (6890, 3, 459), "shapedirs.npy": (6890, 3, 16),
@@ -181,7 +183,7 @@ def _discover(source):
         for relative in relatives:
             name = Path(relative).name.casefold()
             candidates = []
-            for path, info in found.get(name, ()):
+            for path, info in (item for alias in (name, *_ALIASES.get(relative, ())) for item in found.get(alias, ())):
                 priority = _priority(relative, path, info, known_paths)
                 if priority:
                     candidates.append(_Candidate(path, info, priority))
@@ -415,13 +417,13 @@ class _ArchiveIndex:
         self.names.add(name)
         if directory:
             return None
-        if name.endswith(_NESTED_ARCHIVES):
+        if name.endswith(_NESTED_ARCHIVES) and path.name.casefold() not in ('pinhole.tar', 'geocalib-pinhole.tar'):
             raise ModelImportError("archive_nested")
         if path.name.casefold() not in _MODEL_NAMES:
             return None
         info = SimpleNamespace(st_size=size)
         candidates = [(priority, relative) for relative in files.MODEL_DESTINATIONS
-                      if path.name.casefold() == PurePosixPath(relative).name.casefold()
+                      if path.name.casefold() in (PurePosixPath(relative).name.casefold(), *_ALIASES.get(relative, ()))
                       and (priority := _priority(relative, path, info, {}))]
         if not candidates:
             return None

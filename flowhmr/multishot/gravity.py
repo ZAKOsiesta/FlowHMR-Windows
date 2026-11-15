@@ -1,37 +1,38 @@
-"""Optional GeoCalib measurements. Missing/unsupported models use body fallback."""
+"""GeoCalib measurements with explicit, persistent fallback diagnostics."""
 import json
-import sys
-from pathlib import Path
 import numpy as np
 
 
-def image_gravity(video, rt, K, shots, first, folder, device, check, notify):
+def image_gravity(video, rt, K, shots, first, folder, device, check, notify, *, diagnostics=None):
     from .runtime import digest, array_digest, save_json
     from .recovery import CameraCancelled
-    root = Path(__file__).resolve().parents[2]
-    weights = root / 'models/geocalib/pinhole.tar'
-    source = root / 'third_party/GeoCalib'
+    from .. import geocalib_setup as setup, model_files, model_sources
+    diagnostic = diagnostics if diagnostics is not None else {}
+    diagnostic.update(status='unavailable', source_revision=setup.SOURCE_REVISION)
+    check()
+    reason = setup.readiness(device, verify=True)
+    if reason:
+        diagnostic['reason'] = reason
+        notify('画面重力不可用，采用人物与地面估计：' + reason, 50)
+        return {}
+    weights = model_files.resolve_model(model_files.GEOCALIB)
+    diagnostic['model_sha256'] = model_sources.PUBLIC_ASSETS['geocalib'][0].sha256
     cache = folder / 'gravity.json'
     identity = dict(video=digest(video), RT=array_digest(rt), K=array_digest(K), first=first,
-                    shots=shots, weights=digest(weights) if weights.is_file() else None)
+                    shots=shots, weights=diagnostic['model_sha256'], source_revision=setup.SOURCE_REVISION)
     try:
         old = json.loads(cache.read_text(encoding='utf8'))
         if old['identity'] == identity:
+            diagnostic.update(status='measured', cache_reused=True)
             return {int(k): v for k, v in old['shots'].items()}
     except (OSError, ValueError, KeyError):
         pass
-    if not weights.is_file() or not source.is_dir() or str(device).startswith('xpu'):
-        notify('采用人物长窗口与地面估计水平', 50)
-        return {}
     model, cap = None, None
     result = {}
     try:
         import cv2
         import torch
-        for path in (source, root / 'optional_packages/geocalib'):
-            if str(path) not in sys.path:
-                sys.path.insert(0, str(path))
-        from geocalib import GeoCalib
+        GeoCalib = setup.load_class()
         check()
         notify('估计画面重力方向', 48)
         model = GeoCalib(weights=str(weights)).to(device).eval()
@@ -59,9 +60,12 @@ def image_gravity(video, rt, K, shots, first, folder, device, check, notify):
                 dispersion = np.rad2deg(np.arccos(np.clip(directions @ mean, -1, 1)))
                 result[int(shot['id'])] = dict(mean_world_up=mean.tolist(), dispersion_max_deg=float(dispersion.max()))
         save_json(cache, dict(identity=identity, shots=result))
+        diagnostic.update(status='measured', cache_reused=False)
     except CameraCancelled:
         raise
     except (ImportError, RuntimeError, ValueError, OSError) as exc:
+        diagnostic.update(status='unavailable', reason='runtime_missing' if isinstance(exc, ImportError) else 'inference_failed',
+                          detail=f'{type(exc).__name__}: {exc}')
         notify(f'画面重力不可用，采用人物与地面估计：{exc}', 50)
         result = {}
     finally:

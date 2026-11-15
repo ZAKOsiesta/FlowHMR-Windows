@@ -6,6 +6,7 @@ from flask import jsonify, request, send_file
 
 from .camera import Camera
 from .exports import camera_bundle
+from .quality import read_quality
 
 
 def register_camera_routes(app, get_job, job_directory, load_joints, tasks=None):
@@ -28,7 +29,8 @@ def register_camera_routes(app, get_job, job_directory, load_joints, tasks=None)
         try:
             from .ground import stored_floor
             directory=root(job_id)
-            return jsonify(Camera.load(directory / 'camera/camera.npz').json(stored_floor(directory)))
+            return jsonify({**Camera.load(directory / 'camera/camera.npz').json(stored_floor(directory)),
+                            'quality': read_quality(directory)})
         except FileNotFoundError:
             return missing()
         except (ValueError, KeyError) as exc:

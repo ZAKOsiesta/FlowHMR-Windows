@@ -709,3 +709,10 @@ body { height: 100dvh; }
   .timeline-head { grid-template-columns: auto 1fr; }
   .timeline-head .controls { justify-content: center; }
 }
+.source-camera-warning {
+  position: absolute; z-index: 5; top: 50px; left: 12px; right: 12px;
+  width: fit-content; max-width: min(680px, calc(100% - 24px));
+  padding: 9px 12px; border: 1px solid #b98a3c; border-radius: 5px;
+  background: #302617ed; color: #ffe0a0; font-size: 12px; line-height: 1.5;
+  pointer-events: none;
+}

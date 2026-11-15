@@ -249,10 +249,22 @@ def run(video, boxes_path, start, gpu, target, stride=1):
     _progress(frames, "HaMeR 手指精修完成" if valid.any() else "HaMeR 未找到有效手部画面，已保留原动作")
 
 
-if __name__ == "__main__":
+def configure_runtime(arguments):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    if len(arguments) > 1:
+        if arguments[0] != "system" or len(arguments) != 2:
+            raise ValueError("Only the system runtime accepts an explicit package directory")
+        site = Path(arguments[1]).resolve()
+        if not all((site / name / "__init__.py").is_file() for name in ("torch", "torchvision")):
+            raise RuntimeError(f"The parent inference package directory is incomplete: {site}")
+        sys.path.insert(0, str(site))
+    # Detect the system runtime only after restoring the explicitly supplied site.
     from flowhmr.runtime_environments import RUNTIME
 
+    RUNTIME.configure_process(name=arguments[0] if arguments else None)
+
+
+if __name__ == "__main__":
     video, boxes, start, gpu, target, stride, *runtime = sys.argv[1:]
-    RUNTIME.configure_process(name=runtime[0] if runtime else None)
+    configure_runtime(runtime)
     run(Path(video), Path(boxes), int(start), int(gpu), Path(target), int(stride))

@@ -116,6 +116,17 @@ def merge_fingers(output, rotations, valid):
     return result
 
 
+def worker_runtime_arguments(runtime, torch_module=None):
+    arguments = [runtime.active] if runtime.active is not None else []
+    if runtime.active == "system":
+        if torch_module is None:
+            import torch as torch_module
+        # -I intentionally ignores PYTHONPATH; pass the parent's actual package
+        # location explicitly instead of assuming it is installed in the venv.
+        arguments.append(str(Path(torch_module.__file__).resolve().parents[1]))
+    return arguments
+
+
 def refine_fingers(video_path, hand_boxes_path, start_frame, output, *, device,
                    stride=1, cancel_check=None, on_progress=None):
     import numpy as np
@@ -150,8 +161,7 @@ def refine_fingers(video_path, hand_boxes_path, start_frame, output, *, device,
         target = Path(temp) / "fingers.npz"
         command = [sys.executable, "-I", "-B", "-X", "utf8", "-u", str(worker), str(video),
                    str(Path(hand_boxes_path).resolve()), str(start_frame), str(gpu), str(target), str(stride)]
-        if RUNTIME.active is not None:
-            command.append(RUNTIME.active)  # Keep the parent's GPU runtime in the isolated interpreter.
+        command.extend(worker_runtime_arguments(RUNTIME, torch))
         events = Queue()
         tail = deque(maxlen=24)
         with subprocess.Popen(command, cwd=temp, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,

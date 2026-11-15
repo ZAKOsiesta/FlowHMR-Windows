@@ -104,6 +104,23 @@ def prepare(source, destination, storage):
             replace_link(link, original, target)
         report.append(dict(path=name, state='independent', commit=commit,
                            storage=str(target), status=git(link, 'status', '--short')))
+    # The installed offline SAM patch resolves __file__ before looking for DINOv3
+    # next to sam-3d-body. A junction in the superproject alone cannot satisfy it.
+    companion = 'third_party/dinov3'
+    original, link, target = source/companion, destination/companion, storage/companion
+    if ((source/'third_party/sam-3d-body/.git').exists()
+            and original.is_dir() and companion not in expected):
+        if not (original/'hubconf.py').is_file():
+            raise ValueError(f'Installed local DINOv3 is incomplete: {original}')
+        if not target.exists():
+            shutil.copytree(original, target, symlinks=True,
+                            ignore=shutil.ignore_patterns('.git', '__pycache__', '*.pyc'))
+        if target.resolve() != target.parent.resolve()/target.name or not (target/'hubconf.py').is_file():
+            raise ValueError(f'Independent local DINOv3 is incomplete or shared: {target}')
+        if link.resolve() != target.resolve():
+            replace_link(link, original, target)
+        report.append(dict(path=companion, state='independent-source', storage=str(target),
+                           required_by='third_party/sam-3d-body', entry='hubconf.py'))
     return report
 
 

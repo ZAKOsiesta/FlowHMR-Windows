@@ -10,7 +10,7 @@ import numpy as np
 
 from .runtime import array_digest, digest, save_json, save_npz
 from .shots import clip_shots
-from .linking import shot_candidates, link_tracks, continuity_breaks
+from .linking import shot_candidates, link_tracks, continuity_breaks, filter_short_segments
 from .timeline import intervals, held_indices
 
 
@@ -189,8 +189,9 @@ def _join_motion(parts, valid, first):
     placements = []
     for a,b,motion,broken in parts:
         poses, trans = motion['poses'].copy(), motion['trans'].copy()
-        if previous is not None and not broken:
-            # Across missing observations keep heading/position by convention.
+        if previous is not None:
+            # Independent generation does not establish a new world origin.
+            # Across absence OR a rejected cut, hold heading/position by convention.
             angle = wrap(yaw(Rotation.from_rotvec(previous[0]).as_matrix())-
                          yaw(Rotation.from_rotvec(poses[0,0]).as_matrix()))
             rotation = ry(angle)
@@ -200,7 +201,7 @@ def _join_motion(parts, valid, first):
             shift[1] = 0  # segment heights have already been placed on the common ground
             trans += shift
             placements.append(dict(source_start=first+a, yaw_deg=float(np.degrees(angle)), shift_m=shift.tolist(),
-                                   basis='held heading and horizontal position across absence'))
+                                   basis='held heading and horizontal position across '+('pose discontinuity' if broken else 'absence')))
         for key in temporal:
             out[key][a:b] = poses if key=='poses' else trans if key=='trans' else poses[:,0] if key=='Rh' else motion[key]
         previous = (poses[-1,0], trans[-1])
@@ -243,11 +244,16 @@ def process_linked(engine, video, sub_dir, name, meta, shots, *, detection_range
     boxes, valid, linked = link_tracks(result, shots, selected)
     boxes, valid, visibility = _recover_visibility(engine,video,folder,boxes,valid,shots,check,progress)
     first, stop = shots[0]['start'], shots[-1]['end']
+    valid, discarded = filter_short_segments(valid, first=first)
     report = dict(mode='linked', shots=len(shots), tracks=linked, intervals=[], placements=[],
+                  minimum_segment_frames=15, discarded_segments=discarded,
                   visibility=dict(missing_before=visibility['missing_before'],missing_after=visibility['missing_after'],
                                   evidence='input/linked/visibility.json'))
     details(shot_linking_report=json.loads(json.dumps(report,allow_nan=False)),
             track_range=[first,stop-1], message=f'已自动连接 {len(shots)} 个镜头')
+    save_json(folder/'report.json',report)
+    if not valid.any():
+        raise ValueError('处理区间内没有至少连续 15 帧的人物观测，请调整区间；短暂碎段已记录并排除。')
     save_npz(Path(sub_dir)/f'{name}_bbox.npz', bbox=boxes, start_end=[first,stop-1],
              detection_request=detection_request_key(detection_range), valid_frames=valid)
     hw = (meta.height,meta.width)
@@ -272,17 +278,31 @@ def process_linked(engine, video, sub_dir, name, meta, shots, *, detection_range
         observed+=b-a
         all_points[a:b], all_orientation[a:b] = obs['points'], obs['global_orient_camera']
         run_shots = clip_shots(shots, first+a,first+b)
-        guard = continuity_breaks(obs['points'],run_shots)
+        guard = continuity_breaks(obs['points'],run_shots, K=K[a:b], image_size_hw=hw)
         breaks = [r['frame'] for r in guard if r['broken']]
         all_breaks.extend(a+x for x in breaks)
         prepared.append((a,b,run,tokens,obs,hands,guard,breaks))
+    valid, discarded = filter_short_segments(valid, all_breaks, first=first)
+    report['discarded_segments'].extend(discarded)
+    report['valid_frames'] = int(valid.sum())
+    save_json(folder/'report.json',report)
+    details(shot_linking_report=copy.deepcopy(report))
+    if not valid.any():
+        raise ValueError('切点分段后没有至少连续 15 帧的人物观测，请调整区间；短暂碎段已记录并排除。')
+    total_valid = int(valid.sum())
+    all_points[~valid], all_orientation[~valid] = np.nan, np.nan
+    save_npz(Path(sub_dir)/f'{name}_bbox.npz', bbox=boxes, start_end=[first,stop-1],
+             detection_request=detection_request_key(detection_range), valid_frames=valid)
     rotation_all,gauge_reports=linked_condition(raw[:,:3,:3],all_orientation,valid,
         clip_shots(shots,first,stop),all_breaks,source_start=first)
     report['gauge']=gauge_reports
     generated=0
+    hamer_segments = {}
     for a,b,run,tokens,obs,hands,guard,breaks in prepared:
         boundaries = [0,*breaks,b-a]
         for left,right in zip(boundaries,boundaries[1:]):
+            if not valid[a+left:a+right].any():
+                continue
             target = run/f'segment_{left}_{right}'
             target.mkdir(exist_ok=True)
             rotation=rotation_all[a+left:a+right]
@@ -295,12 +315,24 @@ def process_linked(engine, video, sub_dir, name, meta, shots, *, detection_range
             np.save(segment_hands,np.load(hands)[left:right])
             def generation_progress(stage,pct,message):
                 progress(stage,100*(generated+(right-left)*pct/100)/total_valid,message)
+            def generation_details(**values):
+                if 'hamer_report' in values:
+                    key = (first+a+left, first+a+right)
+                    hamer_segments[key] = copy.deepcopy(values['hamer_report'])
+                    report['hamer_segments'] = [dict(source_frames=list(k), report=v)
+                                                for k,v in hamer_segments.items()]
+                    report['hamer_report'] = {field:sum(v[field] for v in hamer_segments.values())
+                        for field in ('frames','left','right','sampled_left','sampled_right','seconds')}
+                    report['hamer_report']['seconds'] = round(report['hamer_report']['seconds'], 2)
+                    report['hamer_report']['stride'] = hamer_stride
+                    values['hamer_report'] = copy.deepcopy(report['hamer_report'])
+                details(**values)
             engine._generate_video_motion(tokens[left:right].float().contiguous(),camera,str(target),name,
                 working_video=str(video), start_frame=first+a+left, seed=seed,cfg_scale=cfg_scale,
                 smoothing_frames=smoothing_frames,hamer=hamer,hamer_stride=hamer_stride,
                 hand_boxes_path=str(segment_hands),
                 progress=generation_progress,
-                details=details,cancel_check=check,
+                details=generation_details,cancel_check=check,
                 reference_shapes=parts[0][2]['betas'] if parts else None)
             suffix = '' if engine.postprocess is not None or hamer else '_origin'
             with np.load(target/f'{name}_seed{seed}{suffix}.npz',allow_pickle=False) as z:

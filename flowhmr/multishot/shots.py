@@ -3,6 +3,14 @@ import json
 from pathlib import Path
 
 
+class ShotDetectionUnavailable(ImportError):
+    """Optional shot detector cannot be imported; original inference is usable."""
+
+
+class IncompleteShotDetection(ValueError):
+    """The detector did not decode the entire requested range."""
+
+
 def detect_shots(video, first, stop, cache, check=lambda: None):
     from .runtime import save_json
     video, cache = Path(video), Path(cache)
@@ -15,7 +23,10 @@ def detect_shots(video, first, stop, cache, check=lambda: None):
             return data['shots']
     except (OSError, ValueError, KeyError):
         pass
-    from scenedetect import open_video, SceneManager, AdaptiveDetector
+    try:
+        from scenedetect import open_video, SceneManager, AdaptiveDetector
+    except ImportError as error:
+        raise ShotDetectionUnavailable('切镜检测依赖不可用，已退回原流程。') from error
     stream = open_video(str(video))
     # Cancellation is checked during decoding, including long uncut footage.
     read = stream.read
@@ -29,7 +40,7 @@ def detect_shots(video, first, stop, cache, check=lambda: None):
     try:
         manager.detect_scenes(stream, end_time=stop, show_progress=False)
         if stream.frame_number < stop:
-            raise ValueError('视频未能完整读取所选区间，请释放内存后重试；未保存不完整的镜头检测。')
+            raise IncompleteShotDetection('视频未能完整读取所选区间，已退回原流程；未保存不完整的镜头检测。')
         scenes = manager.get_scene_list(start_in_scene=True)
     finally:
         capture = getattr(stream, '_cap', None)

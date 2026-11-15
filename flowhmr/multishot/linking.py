@@ -58,9 +58,35 @@ def link_tracks(result, shots, selected=None):
     return boxes, valid, report
 
 
-def continuity_breaks(points, shots):
-    """Compare upper-body pose in its own torso basis; ignore camera cut angle."""
+def filter_short_segments(valid, breaks=(), *, first=0, minimum=15):
+    """Reject short generation spans, including spans delimited by true jumps."""
+    from .timeline import intervals
+    valid = np.array(valid, dtype=bool, copy=True)
+    discarded = []
+    for a, b in intervals(valid):
+        bounds = [a, *sorted({int(c) for c in breaks if a < c < b}), b]
+        for left, right in zip(bounds, bounds[1:]):
+            if right-left < minimum:
+                valid[left:right] = False
+                discarded.append(dict(source_frames=[first+left, first+right],
+                    frames=right-left, reason='below_minimum_generation_length', minimum_frames=minimum))
+    return valid, discarded
+
+
+def continuity_breaks(points, shots, *, K, image_size_hw):
+    """Compare only jointly in-frame articulation in a trusted torso basis.
+
+    Image inclusion is evidence of observability, not an occlusion/confidence
+    detector. The four torso anchors must also be in frame on both sides; an
+    unseen anchor must never rotate otherwise visible joints into a false jump.
+    """
     points = np.asarray(points, float)
+    K = np.asarray(K, float)
+    h, w = image_size_hw
+    projected = np.einsum('tij,tkj->tki', K, points)
+    uv = projected[..., :2]/np.maximum(points[..., 2:3], 1e-8)
+    visible = (np.isfinite(points).all(-1) & np.isfinite(uv).all(-1) & (points[..., 2] > .05)
+               & (uv[..., 0] >= 0) & (uv[..., 0] < w) & (uv[..., 1] >= 0) & (uv[..., 1] < h))
     torso = (points[:, 5]+points[:, 6])/2
     hip = (points[:, 9]+points[:, 10])/2
     def unit(a):
@@ -70,11 +96,33 @@ def continuity_breaks(points, shots):
     right = unit(right-np.sum(right*up, -1, keepdims=True)*up)
     forward = unit(np.cross(right, up))
     basis = np.stack([right, up, forward], -1)
-    local = np.einsum('tji,tkj->tki', basis, points[:, [5,6,7,8,62,41]]-torso[:, None])
-    delta = np.linalg.norm(np.diff(local, axis=0), axis=-1).mean(-1)
+    joints = np.array([5,6,7,8,62,41])
+    local = np.einsum('tji,tkj->tki', basis, points[:, joints]-torso[:, None])
+    delta = np.linalg.norm(np.diff(local, axis=0), axis=-1)
+    anchors = (visible[:, [5,6,9,10]].all(-1) & np.isfinite(basis).all((1,2))
+               & (np.linalg.det(basis) > .99))
+    trusted = anchors[1:] & anchors[:-1]
+    common = visible[1:, joints] & visible[:-1, joints]
     within = np.ones(len(delta), bool)
     for shot in shots[1:]:
         within[shot['start']-1] = False
-    threshold = 3*max(float(np.percentile(delta[within], 99)) if within.any() else 0, 1e-6)
-    return [dict(frame=s['start'], jump_m=float(delta[s['start']-1]), threshold_m=threshold,
-                 broken=bool(delta[s['start']-1] > threshold)) for s in shots[1:]]
+    report = []
+    for shot in shots[1:]:
+        edge = shot['start']-1
+        use = common[edge]
+        row = dict(frame=shot['start'], jump_m=None, threshold_m=None, broken=False,
+                   visible_joints=joints[use].tolist(), baseline_pairs=0, reason='insufficient_visible_joints')
+        if trusted[edge] and use.sum() >= 4:
+            # Compare the same joint subset at the cut and within shots, so a
+            # changing visibility set cannot lower the baseline artificially.
+            baseline = within & trusted & common[:, use].all(-1)
+            row['baseline_pairs'] = int(baseline.sum())
+            if baseline.any():
+                jump = float(delta[edge, use].mean())
+                threshold = 3*max(float(np.percentile(delta[baseline][:, use].mean(-1), 99)), 1e-6)
+                row.update(jump_m=jump, threshold_m=threshold, broken=jump > threshold,
+                           reason='visible_pose_jump' if jump > threshold else 'continuous_visible_pose')
+            else:
+                row['reason'] = 'insufficient_visible_baseline'
+        report.append(row)
+    return report

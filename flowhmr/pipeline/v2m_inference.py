@@ -1145,9 +1145,16 @@ class V2MInferenceEngine:
         if shot_linking not in ('auto', 'off'):
             raise ValueError('shot_linking must be auto or off')
         if shot_linking == 'auto':
-            from flowhmr.multishot.shots import detect_shots
+            from flowhmr.multishot.shots import detect_shots, ShotDetectionUnavailable, IncompleteShotDetection
             stop = min(video_meta.total_frames, last_requested+1 if last_requested is not None else video_meta.total_frames)
-            shots = detect_shots(working_video, start_frame, stop, Path(sub_dir)/'shots.json', cancel_check or (lambda: None))
+            try:
+                shots = detect_shots(working_video, start_frame, stop, Path(sub_dir)/'shots.json', cancel_check or (lambda: None))
+            except (ShotDetectionUnavailable, IncompleteShotDetection) as error:
+                if cancel_check is not None:
+                    cancel_check()
+                shots = []
+                reason = 'shot_detection_unavailable' if isinstance(error, ShotDetectionUnavailable) else 'shot_detection_incomplete'
+                _details(shot_linking_report=dict(mode='original', reason=reason, shots=None, detail=str(error)))
             if len(shots) > 1:
                 from flowhmr.multishot.generation import process_linked
                 linked = process_linked(self, working_video, sub_dir, video_name, video_meta, shots,
@@ -1158,7 +1165,7 @@ class V2MInferenceEngine:
                     smoothing_frames=smoothing_frames, hamer=hamer, hamer_stride=hamer_stride)
                 if linked is not None:
                     return linked
-            else:
+            elif shots:
                 _details(shot_linking_report=dict(mode='original', reason='no_cuts', shots=1))
         dependent_paths = tuple(os.path.join(sub_dir, f"{video_name}_{suffix}") for suffix in (
             "vggt_camera.npz", "static_camera.npz", "sam3d_feat.pt", "sam3d_feat_static.pt",

@@ -79,9 +79,10 @@ class LinkedMotionTests(unittest.TestCase):
         p[:,62]=[-.4,.2,3];p[:,41]=[.4,.2,3]
         p[30:] = p[30:] @ ry(1.2).T + [2,1,4]
         shots=[dict(start=0,end=30),dict(start=30,end=60)]
-        self.assertFalse(continuity_breaks(p,shots)[0]['broken'])
+        K=np.tile([[100,0,5000],[0,100,5000],[0,0,1]],(60,1,1))
+        self.assertFalse(continuity_breaks(p,shots,K=K,image_size_hw=(10000,10000))[0]['broken'])
         p[30:,62] += [0,1,0]
-        self.assertTrue(continuity_breaks(p,shots)[0]['broken'])
+        self.assertTrue(continuity_breaks(p,shots,K=K,image_size_hw=(10000,10000))[0]['broken'])
 
     def test_gauge_heading_is_continuous_without_flattening_body_lean(self):
         n=60
@@ -93,7 +94,7 @@ class LinkedMotionTests(unittest.TestCase):
         self.assertTrue(np.allclose(np.linalg.det(result),1))
         self.assertGreater(np.std((result.transpose(0,2,1)@body)[:,1,1]),.001)
 
-    def test_gap_holds_pose_and_broken_cut_keeps_independent_orientation(self):
+    def test_gap_holds_pose_and_broken_cut_preserves_world_placement(self):
         def motion(n,angle,x):
             poses=np.zeros((n,52,3),np.float32);poses[:,0,1]=angle
             return dict(poses=poses,Rh=poses[:,0].copy(),trans=np.tile([x,1.,0.],(n,1)).astype(np.float32),
@@ -106,7 +107,8 @@ class LinkedMotionTests(unittest.TestCase):
         self.assertEqual(report[0]['source_start'],104)
         json.dumps(report,allow_nan=False)  # This exact report is persisted in job.json.
         broken,_=_join_motion([(1,3,motion(2,0,2),False),(4,6,motion(2,1,9),True)],valid,100)
-        self.assertAlmostEqual(broken['poses'][4,0,1],1)
+        self.assertAlmostEqual(broken['poses'][4,0,1],0,places=6)
+        np.testing.assert_allclose(broken['trans'][4,[0,2]],broken['trans'][2,[0,2]])
 
 
 if __name__=='__main__':

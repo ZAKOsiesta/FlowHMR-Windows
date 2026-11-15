@@ -14,9 +14,11 @@ from flowhmr.utils.runtime_vggt_camera import _vggt_opencv_to_yup_rt
 
 class LinkedGroundTests(unittest.TestCase):
     def run_case(self,root,multiple):
-        frames=np.r_[0:3,17:20] if multiple else np.arange(20)
+        # Both observed intervals meet the linked generator's 15-frame minimum.
+        count=50 if multiple else 20
+        frames=np.r_[0:20,30:50] if multiple else np.arange(count)
         result=SimpleNamespace(tracks=[SimpleNamespace(frames=frames,bboxes=np.tile([0,0,10,20],(len(frames),1)),track_id=1,length=len(frames),avg_area=200)])
-        shots=[dict(id=0,start=0,end=10),dict(id=1,start=10,end=20)]
+        shots=[dict(id=0,start=0,end=count//2),dict(id=1,start=count//2,end=count)]
         engine=SimpleNamespace(postprocess=SimpleNamespace(last_report=None),smpl_model_path='unused')
         calls=[]
         def generate(tokens,camera,target,name,**kw):
@@ -33,24 +35,24 @@ class LinkedGroundTests(unittest.TestCase):
         details=[]
         exporter=MagicMock();exporter.return_value.__enter__.return_value=MagicMock()
         with patch('flowhmr.multishot.generation._tracks',return_value=result),patch('flowhmr.multishot.generation._features',side_effect=features),\
-             patch('flowhmr.multishot.generation._cameras',return_value=(np.tile(np.eye(4),(20,1,1)),np.tile(np.eye(3),(20,1,1)))),\
+             patch('flowhmr.multishot.generation._cameras',return_value=(np.tile(np.eye(4),(count,1,1)),np.tile(np.eye(3),(count,1,1)))),\
              patch('flowhmr.multishot.generation._recover_visibility',side_effect=lambda e,v,f,b,m,s,c,p:(b,m,dict(missing_before=int((~m).sum()),missing_after=int((~m).sum())))),\
              patch.dict(sys.modules,{'flowhmr.core.export.smplh2fbx':SimpleNamespace(SMPLH2FBX=exporter)}):
-            process_linked(engine,'fixture',str(root),'input',SimpleNamespace(height=20,width=10,total_frames=20),shots,
-                detection_range=(0,19),person_selector=None,progress=lambda *a:None,details=lambda **kw:details.append(kw),check=lambda:None,
+            process_linked(engine,'fixture',str(root),'input',SimpleNamespace(height=20,width=10,total_frames=count),shots,
+                detection_range=(0,count-1),person_selector=None,progress=lambda *a:None,details=lambda **kw:details.append(kw),check=lambda:None,
                 seed=0,cfg_scale=1,static_camera=True,vggt_interval=0,sam_chunk_size=24,sam_hand_stride=1,smoothing_frames=1,hamer=False,hamer_stride=1)
         return dict(np.load(root/'input_seed0.npz')),json.loads((root/'linked/report.json').read_text()),engine
 
     def test_multiple_estimated_floors_are_unified_and_report_is_aggregate(self):
         with TemporaryDirectory() as tmp:
             root=Path(tmp);motion,report,engine=self.run_case(root,True)
-            np.testing.assert_allclose(motion['trans'][[0,2,17,19],1],1,atol=1e-6)
-            np.testing.assert_allclose(motion['trans'][[1,18],1],1.2,atol=1e-6)
+            np.testing.assert_allclose(motion['trans'][[0,19,30,49],1],1,atol=1e-6)
+            np.testing.assert_allclose(motion['trans'][[10,40],1],1.2,atol=1e-6)
             self.assertEqual(float(motion['ground_height_m']),0.)
             self.assertEqual(report['ground']['height_m'],0.)
             from flowhmr.multishot.ground import correction_summary
             summary=correction_summary(root/'input_seed0.npz',engine.postprocess,dict(correction_floor_m=None))
-            self.assertEqual(summary['floor_m'],0.);self.assertEqual(summary['contacts'],12)
+            self.assertEqual(summary['floor_m'],0.);self.assertEqual(summary['contacts'],80)
             self.assertEqual(len(summary['ground']['segments']),2)
 
     def test_single_generated_interval_keeps_native_floor_and_trajectory(self):

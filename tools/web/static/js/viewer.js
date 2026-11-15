@@ -7,7 +7,7 @@ import { appError, message as m, setAttr, setText, t } from "./i18n.js";
 import * as api from "./api.js";
 import { initPreviewCharacter } from "./preview-character.js";
 import { applySourceCamera, sourceViewport, placedCameraTransform } from './paired-camera.js';
-import { sampleFrame } from './frame-sample.js';
+import { sampleFrame, sameFrameSegment } from './frame-sample.js';
 
 const BODY_STORAGE = "flowhmr-body-variant";
 const MOUSE_MODE_STORAGE = "flowhmr-mouse-mode";
@@ -632,22 +632,27 @@ export function initViewer(preview) {
   const sourceStart = (meta) => meta.track_start ?? 0;
   const actorFrame = (actor, frame) => sourceStart(state.meta) + frame - sourceStart(actor.meta);
 
-  function presentationFrame(frame) {
+  function presentationFrame(frame, sourceFrame = Math.floor(frame)) {
     // A single display clock keeps camera, body, skeleton and retargeted rig
     // together when any participating track reaches a discontinuity.
+    let held = false;
     for (const actor of actors) {
       const local = actorFrame(actor, frame), m = actor.meta;
+      if (!sameFrameSegment(local, actorFrame(actor, sourceFrame), m.num_frames, m.valid_frames, m.shot_ids))
+        return sourceFrame;
       if (local >= 0 && local < m.num_frames &&
           sampleFrame(local, m.num_frames, m.valid_frames, m.shot_ids).frame !== local)
-        return Math.floor(frame);
+        held = true;
     }
     if (cameraData) {
       const local = sourceStart(state.meta) + frame - cameraData.track_start;
+      if (!sameFrameSegment(local, sourceStart(state.meta) + sourceFrame - cameraData.track_start,
+          cameraData.RT.length, cameraData.camera_valid, cameraData.shot_ids)) return sourceFrame;
       if (local >= 0 && local < cameraData.RT.length &&
           sampleFrame(local, cameraData.RT.length, cameraData.camera_valid, cameraData.shot_ids).frame !== local)
-        return Math.floor(frame);
+        held = true;
     }
-    return frame;
+    return held ? Math.floor(frame) : frame;
   }
 
   function frameRoot(f) {
@@ -715,7 +720,7 @@ export function initViewer(preview) {
     // Keep normal-speed renders on source frames. At slow speeds or higher
     // display rates, draw in-between poses without changing the source clock.
     const fractional = state.playing && (state.speed < 1 || displayRate() > m.fps);
-    const pose = presentationFrame(fractional ? Math.min(m.num_frames - 1, state.playbackPosition) : integer);
+    const pose = presentationFrame(fractional ? Math.min(m.num_frames - 1, state.playbackPosition) : integer, integer);
     if (pose === state.visualFrame && integer === state.frame) {
       if (fractional) renderFrameCounter();
       return;

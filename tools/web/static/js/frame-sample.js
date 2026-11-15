@@ -11,3 +11,11 @@ export function sampleFrame(frame, count, validFrames, shotIds) {
   const alpha = hi === lo ? 0 : frame - lo;
   return { visible, lo, hi, alpha, frame: lo + alpha };
 }
+
+// Video synchronization interpolates around frame centers. At a cut or
+// visibility transition, the decoded source frame owns the boundary instead.
+export function sameFrameSegment(frame, sourceFrame, count, validFrames, shotIds) {
+  const a = sampleFrame(frame, count, validFrames, shotIds);
+  const b = sampleFrame(sourceFrame, count, validFrames, shotIds);
+  return a.visible === b.visible && (shotIds == null || shotIds[a.lo] === shotIds[b.lo]);
+}

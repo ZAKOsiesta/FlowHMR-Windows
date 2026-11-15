@@ -3,7 +3,8 @@
 Unmodified inference-only files from https://github.com/cvg/GeoCalib at
 `1dedb29f94fc11b896c5f572005978aeebccd67f`, under the accompanying Apache-2.0
 LICENSE. Training, interactive demo and visualization helpers are excluded.
-`manifest.json` records each included file's SHA-256. Original file headers and
+`manifest.json` records each included file's SHA-256 with the upstream LF line
+endings enforced by `.gitattributes`. Original file headers and
 third-party attribution are retained.
 
 FlowHMR supplies this source in portable builds and code updates. Runtime

@@ -304,13 +304,25 @@ def expose_updates(window, port, backend, trial_ready, choose):
         return updater.select_version(version) if local_page() else None
 
     def confirm_update_boot():
-        if trial_ready is None or trial_ready.is_set() or not local_page():
-            return
-        (updater.work / "applying/healthy").touch(exist_ok=True)
-        trial_ready.set()
+        if not local_page():
+            return False
+        if trial_ready is not None and not trial_ready.is_set():
+            (updater.work / "applying/healthy").touch(exist_ok=True)
+            trial_ready.set()
+            logging.info("Updated workspace confirmed ready")
+        return True
+
+    def report_workspace_boot(phase, detail=""):
+        if not local_page() or phase not in ("modules", "initializing", "info", "history", "ready", "error"):
+            return False
+        if phase == "error":
+            logging.warning("Workspace startup error: %s", str(detail)[:1000].replace("\n", " ").replace("\r", " "))
+        else:
+            logging.info("Workspace startup: %s", phase)
+        return True
 
     window.expose(get_update_state, check_updates, download_update, stop_update, manual_update,
-                  select_update_version, confirm_update_boot)
+                  select_update_version, confirm_update_boot, report_workspace_boot)
 
 
 def connect(window, port, backend, *, trial=False):
@@ -340,7 +352,7 @@ def connect(window, port, backend, *, trial=False):
         if result.returncode:
             raise RuntimeError(f"FlowHMR backend exited with code {result.returncode}")
         window.load_url(f"http://127.0.0.1:{port}/")
-        logging.info("Loaded local FlowHMR at port %d", port)
+        logging.info("Requested local FlowHMR page at port %d; awaiting workspace initialization", port)
         return True
     except Exception:
         if backend.closed.is_set():

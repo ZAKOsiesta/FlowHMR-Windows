@@ -38,8 +38,9 @@ reports include `quality`: `status`, `degraded`, `reason`, `fallback_shots` and
 New recovery reports also retain `gravity`: the component revision, model hash,
 cache reuse, availability, failure category and technical failure detail where
 applicable. Reasons distinguish missing/corrupt weights, missing runtime,
-unsupported device, inference failure, static-camera mode and unstable image
-measurements. Cancellation still cancels. Cache reuse requires the same source
+unsupported device, inference failure and unstable image measurements. Historical
+reports may also carry the previous `static_camera` bypass reason. Cancellation
+still cancels. Cache reuse requires the same source
 revision and checkpoint and does not bypass readiness checks.
 
 The task completion summary and source-camera viewport display persistent,
@@ -47,8 +48,11 @@ localized warnings. Older reports derive the warning from their recorded
 `gravity_source`; reading them does not rewrite stored jobs. A report with no
 quality evidence is marked unverified. Shared-scene cameras retain their
 separate shared-world contract. Installing GeoCalib does not retroactively
-recompute an existing camera. Static-camera mode retains its previous body/ground
-leveling behavior and explicitly reports that image gravity was not used.
+recompute an existing camera. New source-camera recovery uses GeoCalib for static
+generation jobs too, on both ordinary and linked-shot inputs. Static generation
+still skips VGGT. A static camera can be tilted relative to the ground, so the
+static setting does not imply that image gravity is unnecessary. Frozen research
+input archives retain their explicitly recorded gravity rather than re-estimating it.
 
 ## Verification on 2026-11-16
 
@@ -71,8 +75,20 @@ leveling behavior and explicitly reports that image gravity was not used.
 - The upstream NMF module initializes random bases. The fresh unseeded run is not
   bit-identical to old cached gravity. With seed 31417, original and vendored
   source gave exactly equal gravity vectors at source frames 90, 1596 and 2838.
+- After optional-component checks/download handling and static recovery were
+  updated, all 186 tests passed. The two new static recovery tests cover ordinary
+  and linked inputs with image gravity and explicit missing-model fallback.
+- On an actual 836-frame static-generation job, fresh CUDA GeoCalib inference
+  supplied image gravity for the single shot (`quality.status=image`, measured
+  direction dispersion 0.530 degrees). A separate empty model directory produced
+  `fallback/weights_missing`. All 836 camera frames remained valid in both runs;
+  source and replay motion files were byte-identical. Existing static-camera and
+  SAM observations were reused; motion generation was not run again.
 
 This is integration validation, not a clean-machine release sign-off. Building
 and installing the complete portable release and exercising a real old-to-new
 update remain release gates. CPU camera recovery, ROCm and XPU quality have not
-been newly validated. Earlier visual/numerical acceptance conditions stay open.
+been newly validated. Odette playback and the two specified movement intervals
+passed visual review; the historical contact-policy numerical difference remains
+documented in the validation notes. New static recovery evidence is an integration
+check, not a claim that its visual quality or all footage has been accepted.

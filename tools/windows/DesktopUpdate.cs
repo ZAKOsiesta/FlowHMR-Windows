@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Text.RegularExpressions;
@@ -108,9 +109,29 @@ internal sealed class DesktopUpdate
 
     private static void Move(string source, string destination)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(destination));
-        if (Directory.Exists(source)) Directory.Move(source, destination);
-        else File.Move(source, destination);
+        // Child processes and file scanners can release rename handles after exit.
+        // Retry this one atomic rename; never discard or overwrite either side.
+        var elapsed = Stopwatch.StartNew();
+        for (;;)
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(destination));
+                if (Directory.Exists(source)) Directory.Move(source, destination);
+                else File.Move(source, destination);
+                return;
+            }
+            catch (IOException error)
+            {
+                int code = error.HResult & 0xffff;
+                if ((code != 5 && code != 32 && code != 33) || elapsed.ElapsedMilliseconds >= 10000) throw;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                if (elapsed.ElapsedMilliseconds >= 10000) throw;
+            }
+            Thread.Sleep(150);
+        }
     }
 
     private static string Staged(string transaction, string target) { return SafePath(transaction, "files/" + target); }
@@ -118,14 +139,19 @@ internal sealed class DesktopUpdate
 
     private void Retire(string transaction)
     {
-        try { Directory.Move(transaction, Path.Combine(work, "retired-" + Guid.NewGuid().ToString("N"))); }
+        try { Move(transaction, Path.Combine(work, "retired-" + Guid.NewGuid().ToString("N"))); }
         catch (IOException error) { Record(error); }
         catch (UnauthorizedAccessException error) { Record(error); }
     }
 
     internal void Record(Exception error)
     {
-        try { File.AppendAllText(Path.Combine(work, "update.log"), DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) + " " + error + Environment.NewLine); }
+        try
+        {
+            Directory.CreateDirectory(SafePath(root, ".cache/program-update"));
+            File.AppendAllText(SafePath(work, "update.log"), DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) + " " + error + Environment.NewLine);
+        }
+        catch (InvalidDataException) { }
         catch (IOException) { }
         catch (UnauthorizedAccessException) { }
     }
@@ -146,13 +172,7 @@ internal sealed class DesktopUpdate
 
     private void RestoreFiles(string transaction)
     {
-        // The desktop owns a Windows job. Give Windows a moment to release its handles.
-        for (int attempt = 0; ; attempt++)
-        {
-            try { RollBack(transaction); break; }
-            catch (IOException) { if (attempt >= 5) throw; Thread.Sleep(150); }
-            catch (UnauthorizedAccessException) { if (attempt >= 5) throw; Thread.Sleep(150); }
-        }
+        RollBack(transaction);
     }
 
     internal bool Finish()
@@ -165,7 +185,7 @@ internal sealed class DesktopUpdate
             if (Directory.Exists(previous)) Retire(previous);
             if (!Directory.Exists(previous))
             {
-                try { Directory.Move(applying, previous); return true; }
+                try { Move(applying, previous); return true; }
                 catch (IOException error) { Record(error); }
                 catch (UnauthorizedAccessException error) { Record(error); }
             }
@@ -184,14 +204,14 @@ internal sealed class DesktopUpdate
             Version installed = ReadVersion(root);
             if (expected != null && expected.Equals(saved) && installed != null
                 && installed.Equals(ReadVersion(previous, "installed-version.txt")) && !Directory.Exists(ready))
-                Directory.Move(previous, undoing);
+                Move(previous, undoing);
             File.Delete(request);
         }
         if (!Directory.Exists(undoing)) return;
         RestoreFiles(undoing);
         File.Delete(SafePath(undoing, "healthy"));
         if (Directory.Exists(forward)) Retire(forward);
-        try { Directory.Move(undoing, forward); }
+        try { Move(undoing, forward); }
         catch (IOException error) { Record(error); Retire(undoing); }
         catch (UnauthorizedAccessException error) { Record(error); Retire(undoing); }
         if (File.Exists(request)) File.Delete(request);
@@ -234,7 +254,7 @@ internal sealed class DesktopUpdate
                     throw new InvalidDataException("The staged update is incomplete: " + target);
             }
             File.WriteAllText(SafePath(ready, "installed-version.txt"), candidate.ToString());
-            Directory.Move(ready, applying);
+            Move(ready, applying);
         }
         catch (Exception error)
         {

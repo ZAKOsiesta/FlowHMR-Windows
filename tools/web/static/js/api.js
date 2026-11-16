@@ -35,7 +35,7 @@ const postJson = (path, body) => json(path, {
   body: JSON.stringify(body || {}),
 });
 
-export const getInfo = () => json("/api/info", { cache: "no-store" });
+export const getInfo = ({ signal } = {}) => json("/api/info", { cache: "no-store", signal });
 export const getModelDownload = () => json("/api/models/download", { cache: "no-store" });
 export const startModelDownload = (group) => postJson("/api/models/download", group ? { group } : {});
 export const stopModelDownload = (id) => postJson("/api/models/download/stop", { id });
@@ -46,18 +46,18 @@ export const getRuntime = () => json("/api/runtime", { cache: "no-store" });
 export const startRuntimeDownload = (version) => postJson("/api/runtime/download", { version });
 export const stopRuntimeDownload = (id) => postJson("/api/runtime/download/stop", { id });
 export const selectRuntime = (version) => postJson("/api/runtime/select", { version });
-export function getJobs({ before, through } = {}) {
+export function getJobs({ before, through, signal } = {}) {
   const query = new URLSearchParams({ limit: "20" });
   if (before) query.set("before", before);
   if (through) query.set("through", through);
-  return json(`/api/jobs?${query}`, { cache: "no-store" });
+  return json(`/api/jobs?${query}`, { cache: "no-store", signal });
 }
 export const deleteJobs = (ids) => json("/api/jobs", {
   method: "DELETE",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify(ids ? { ids } : {}),
 });
-export const getJob = (id) => json(`/api/jobs/${id}`);
+export const getJob = (id, { signal } = {}) => json(`/api/jobs/${id}`, { signal });
 export const getMeta = (id, signal) => json(`/api/jobs/${id}/meta`, { signal });
 export const getVertices = (id, signal, body = "neutral") => request(`/api/jobs/${id}/vertices?body=${encodeURIComponent(body)}`, { signal }).then((r) => r.arrayBuffer());
 export const getFaces = (id, signal) => request(`/api/jobs/${id}/faces`, { signal }).then((r) => r.arrayBuffer());

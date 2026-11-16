@@ -17,6 +17,7 @@ export function initUpdates() {
   const announced = new Set();
   let bridge, state, timer, revision = 0, workspaceReady = false;
   let releases = [], historyStamp = "";
+  let bootConfirmed = false, bootPending = false, bootAttempts = 0, bootTimer, bootStopped = false;
 
   function announceUpdate() {
     const target = state?.target;
@@ -101,8 +102,20 @@ export function initUpdates() {
     }
   }
 
-  function confirmBoot() {
-    if (workspaceReady && bridge) void bridge.confirm_update_boot().catch(() => {});
+  async function confirmBoot() {
+    if (!workspaceReady || !bridge || bootConfirmed || bootPending || bootStopped || bootAttempts >= 8) return;
+    bootPending = true;
+    bootAttempts++;
+    let timeout;
+    try {
+      bootConfirmed = await Promise.race([
+        bridge.confirm_update_boot(),
+        new Promise((resolve) => { timeout = setTimeout(() => resolve(false), 2000); }),
+      ]) === true;
+    } catch { /* A bridge failure must not silently consume the only ready notification. */ }
+    finally { clearTimeout(timeout); bootPending = false; }
+    if (!bootConfirmed && !bootStopped && bootAttempts < 8) bootTimer = setTimeout(confirmBoot, 500);
+    else if (!bootConfirmed && !bootStopped) console.warn("Workspace boot confirmation was not acknowledged.");
   }
 
   async function connect() {
@@ -131,6 +144,7 @@ export function initUpdates() {
     if (other !== dialog) dialogs.observe(other, { attributes: true, attributeFilter: ["open"] });
   }
   window.addEventListener("pywebviewready", connect, { once: true });
+  window.addEventListener("pagehide", () => { bootStopped = true; clearTimeout(bootTimer); });
   void connect();
   return () => { workspaceReady = true; confirmBoot(); announceUpdate(); };
 }

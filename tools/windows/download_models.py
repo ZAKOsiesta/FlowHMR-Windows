@@ -89,12 +89,17 @@ def main():
     files.ensure_model_folders()
     failures = []
 
-    def fetch(url, target, *checks):
+    def fetch(url, target, *checks, required=True):
         try:
             download_url(url, target, *checks)
         except Exception as exc:
-            failures.append(target)
-            print(f"Failed {target}: {type(exc).__name__}: {exc}", flush=True)
+            if required:
+                failures.append(target)
+                print(f"Failed {target}: {type(exc).__name__}: {exc}", flush=True)
+            else:
+                print(f"Warning: GeoCalib model download failed ({target}): {type(exc).__name__}: {exc}. "
+                      "Motion generation remains available; recovered camera ground tilt may be inaccurate. "
+                      "Retry this download or import the GeoCalib model in the app.", flush=True)
 
     if not args.perception_only:
         fetch(sources.YOLOX_URL, files.YOLOX)
@@ -109,7 +114,7 @@ def main():
         for repo, name, target, size, sha in sources.PERCEPTION_DOWNLOADS:
             fetch(sources.modelscope_file(repo, name), target, size, sha)
         geo = sources.PUBLIC_ASSETS['geocalib'][0]
-        fetch(geo.urls[0], geo.relative, geo.size, geo.sha256)
+        fetch(geo.urls[0], geo.relative, geo.size, geo.sha256, required=False)
     if files.smplh_reference() is None:
         entry, archive = sources.MANO_DOWNLOAD
         print(f"SMPL-H: sign in at {sources.MANO_URL} and download '{entry}' ({archive}).\n"

@@ -1004,5 +1004,6 @@ export default Object.freeze({
   "camera.gravity_legacy_fallback": "此历史结果已降级：部分镜头使用人物与地面估计，地面倾角可能不准确。安装模型不会自动改变已有结果。",
   "camera.gravity_unverified": "此结果缺少图像重力验证记录，无法确认地面倾角的可靠性。",
   "server.geocalib_runtime_missing": "图像重力组件缺失，请修复或更新应用安装；原片机位将降级。",
-  "server.geocalib_unsupported_device": "当前设备不支持图像重力估计；原片机位将降级。"
+  "server.geocalib_unsupported_device": "当前设备不支持图像重力估计；原片机位将降级。",
+  "settings.new_features_devices": "跨镜头连接与原片机位恢复目前仅在 NVIDIA CUDA 环境完成验证；CPU、AMD 和 Intel 显卡上的这两项功能尚未验证。"
 });

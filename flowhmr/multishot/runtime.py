@@ -146,7 +146,7 @@ def build_camera(directory, job, inspection, acquire_sam, device, *, check=lambd
     meta_path = folder / 'inputs.json'
     linked = directory / 'input/linked/camera_inputs.npz'
     linked_meta = linked.with_suffix('.json')
-    gravity_diagnostic = dict(status='unavailable', reason='static_camera') if job['params'].get('static_camera') else {}
+    gravity_diagnostic = {}
     if linked.exists() and linked_meta.exists():
         meta = json.loads(linked_meta.read_text(encoding='utf8'))
         if meta['motion_sha256'] != motion_hash or meta['sha256'] != digest(linked):
@@ -157,7 +157,7 @@ def build_camera(directory, job, inspection, acquire_sam, device, *, check=lambd
             rt, K, points, hw = (z[k] for k in ('RT', 'K', 'points', 'image_size_hw'))
             first = int(z['track_start'])
         shots = meta['shots']
-        gravity = {} if job['params'].get('static_camera') else image_gravity(
+        gravity = image_gravity(
             directory/'input/input_30fps.mp4', rt, K, shots, first, folder, device, check, notify, diagnostics=gravity_diagnostic)
         source = dict(raw_camera='linked_shot_cache', observations_reused=True, generation_calls=0)
     elif archive.exists() and meta_path.exists():
@@ -206,7 +206,7 @@ def build_camera(directory, job, inspection, acquire_sam, device, *, check=lambd
         if points is None:
             points, reused = _observations(folder, video, boxes, K, valid, first, acquire_sam, identity, check, notify)
         shots = [dict(id=0, start=0, end=len(joints))]
-        gravity = {} if job['params'].get('static_camera') else image_gravity(
+        gravity = image_gravity(
             video, rt, K, shots, first, folder, device, check, notify, diagnostics=gravity_diagnostic)
         source = dict(raw_camera=mode, observations_reused=reused, observations_identity=identity)
     camera, report = recover_camera(rt, K, joints, points, valid, shots, hw,

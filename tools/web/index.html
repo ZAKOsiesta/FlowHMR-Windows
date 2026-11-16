@@ -274,6 +274,7 @@
           </select>
         </div>
         <p class="setting-help" data-i18n="settings.shot_linking_hint">剪辑视频自动连接一个人物；无切镜或选择多人时沿用原流程。</p>
+        <p class="setting-help" data-i18n="settings.new_features_devices">跨镜头连接与原片机位恢复目前仅在 NVIDIA CUDA 环境完成验证；CPU、AMD 和 Intel 显卡上的这两项功能尚未验证。</p>
         <div class="setting-row" id="samHandStrideRow">
           <div>
             <div class="setting-label" data-i18n="sam.hand_stride">SAM 手部采样</div>
@@ -592,6 +593,7 @@
   </div>
   <p class="model-guide" id="runtimeGpu" data-i18n="runtime.detecting">正在检测显卡…</p>
   <p class="model-guide" data-i18n="runtime.guide">选择一个版本下载并启用即可生成动作。下载失败可续传；切换版本会重启推理服务。</p>
+  <p class="model-guide" data-i18n="settings.new_features_devices">跨镜头连接与原片机位恢复目前仅在 NVIDIA CUDA 环境完成验证；CPU、AMD 和 Intel 显卡上的这两项功能尚未验证。</p>
   <div class="model-list" id="runtimeList"></div>
   <div id="runtimeTransfer" class="model-transfer hidden">
     <p id="runtimeTransferLabel"></p>
@@ -869,6 +871,7 @@
     data-i18n-label="retarget.resize" data-i18n-title="retarget.resize"></button>
 </dialog>
 
+<script src="/static/js/startup.js"></script>
 <script type="module" src="/static/js/main.js"></script>
 </body>
 </html>

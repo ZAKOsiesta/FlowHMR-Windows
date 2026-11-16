@@ -128,13 +128,13 @@ export function initHistory({ onOpen, onRerun, onDeleted, onUpdated }) {
     return jobs;
   }
 
-  async function refresh() {
+  async function refresh({ signal } = {}) {
     if (loadingMore || refreshing) { pendingRefresh = true; return; }
     clearTimeout(timer);
     refreshing = true;
     const version = ++refreshVersion;
     try {
-      const data = await api.getJobs({ through });
+      const data = await api.getJobs({ through, signal });
       if (version !== refreshVersion) return data.jobs;
       const jobs = applyWindow(data);
       return jobs;

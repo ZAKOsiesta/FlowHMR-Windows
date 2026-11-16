@@ -1004,5 +1004,6 @@ export default Object.freeze({
   "camera.gravity_legacy_fallback": "Ancien résultat dégradé : certains plans utilisent le corps et le sol pour estimer la gravité. L’inclinaison peut être incorrecte. Installer le modèle ne modifie pas les résultats enregistrés.",
   "camera.gravity_unverified": "Aucune vérification de gravité n’est enregistrée ; la fiabilité de l’inclinaison du sol est inconnue.",
   "server.geocalib_runtime_missing": "Composants de gravité absents. Réparez ou mettez à jour l’application ; la caméra source fonctionnera en mode dégradé.",
-  "server.geocalib_unsupported_device": "Cet appareil ne prend pas en charge la gravité de l’image ; la caméra source fonctionnera en mode dégradé."
+  "server.geocalib_unsupported_device": "Cet appareil ne prend pas en charge la gravité de l’image ; la caméra source fonctionnera en mode dégradé.",
+  "settings.new_features_devices": "Le raccord entre plans et la récupération de la caméra source ont été validés uniquement avec NVIDIA CUDA. Ces deux fonctions ne sont pas encore validées sur CPU ni sur les GPU AMD ou Intel."
 });

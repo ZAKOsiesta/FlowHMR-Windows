@@ -23,6 +23,7 @@ def main():
     args = parser.parse_args()
     os.chdir(ROOT)
     result = {"python": sys.version.split()[0], "errors": [], "optional": {}}
+    geo_runtime_reason = None
     RUNTIME.configure_process()
     device_type = RUNTIME.default_device()
     result["runtime"] = RUNTIME.summary()
@@ -30,17 +31,31 @@ def main():
         result["errors"].append("请在 FlowHMR 右上角「运行环境」下载并启用推理环境。")
     if not args.models_only and result["runtime"]["ready"]:
         for name in ["torch", "torchvision", "numpy", "cv2", "flask", "yolox",
-                     "supervision", "scenedetect", "mcp", "kornia", "kornia_rs", "flowhmr.pipeline.v2m_inference",
+                     "supervision", "mcp", "flowhmr.pipeline.v2m_inference",
                      "flowhmr.utils.runtime_sam_features", "flowhmr.utils.runtime_vggt_camera"]:
             try:
                 importlib.import_module(name)
             except Exception as exc:
                 result["errors"].append(f"{name}: {type(exc).__name__}: {exc}")
+        for name in ("scenedetect", "kornia", "kornia_rs"):
+            try:
+                importlib.import_module(name)
+                result["optional"][name] = "available"
+            except Exception as exc:
+                result["optional"][name] = f"unavailable: {type(exc).__name__}: {exc}"
+                if name != "scenedetect":
+                    geo_runtime_reason = "runtime_missing"
+        shot_reason = None if result["optional"]["scenedetect"] == "available" else "runtime_missing"
+        result["shot_linking"] = dict(status="degraded" if shot_reason else "available", reason=shot_reason)
         try:
             from flowhmr.geocalib_setup import load_class
             load_class()
+            result["optional"]["geocalib"] = "available"
         except Exception as exc:
-            result['errors'].append(f'GeoCalib runtime: {type(exc).__name__}: {exc}')
+            result["optional"]["geocalib"] = f"unavailable: {type(exc).__name__}: {exc}"
+            geo_runtime_reason = "runtime_missing"
+        result["source_camera_gravity"] = dict(
+            status="degraded" if geo_runtime_reason else "available", reason=geo_runtime_reason)
         try:
             import torch
             import torchvision
@@ -108,7 +123,7 @@ def main():
         result["moving_camera_model"] = "available" if file_present(resolve_model(VGGT)) else "missing (required)"
         result["model_files"] = model_inventory(device_type)["items"]
         from flowhmr.geocalib_setup import readiness
-        geo_reason = readiness(device_type, verify=True)
+        geo_reason = readiness(device_type, verify=True) or geo_runtime_reason
         result['source_camera_gravity'] = dict(status='degraded' if geo_reason else 'available', reason=geo_reason)
     result["ready"] = not result["errors"] and not result.get("missing_models")
     report = json.dumps(result, ensure_ascii=False, indent=2)

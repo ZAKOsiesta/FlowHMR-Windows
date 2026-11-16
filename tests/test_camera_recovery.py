@@ -4,6 +4,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import numpy as np
 from flask import Flask
@@ -101,6 +103,56 @@ class RecoveryTest(unittest.TestCase):
 
 
 class CameraLifecycleTest(unittest.TestCase):
+    def test_static_mode_uses_image_gravity_for_original_and_linked_recovery(self):
+        for linked in (False, True):
+            with self.subTest(linked=linked):
+                self._static_gravity_recovery(linked)
+
+    def test_static_mode_preserves_explicit_missing_model_fallback(self):
+        for linked in (False, True):
+            with self.subTest(linked=linked):
+                self._static_gravity_recovery(linked, missing=True)
+
+    def _static_gravity_recovery(self, linked, missing=False):
+        from flowhmr.multishot import runtime, gravity
+        from flowhmr import geocalib_setup
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / 'input').mkdir()
+            rt, K, joints, points, valid = fixture()
+            np.savez(root / 'motion.npz', trans=np.zeros((30, 3)), valid_frames=valid)
+            joints.tofile(root / 'joints.bin')
+            (root / 'input/input_30fps.mp4').write_bytes(b'video identity fixture')
+            before = runtime.digest(root / 'motion.npz')
+            if linked:
+                folder = root / 'input/linked'
+                folder.mkdir()
+                data = folder / 'camera_inputs.npz'
+                np.savez(data, RT=rt, K=K, points=points, valid=valid,
+                         image_size_hw=[480, 640], track_start=9)
+                runtime.save_json(data.with_suffix('.json'), dict(motion_sha256=before,
+                    sha256=runtime.digest(data), shots=[dict(id=0, start=0, end=30)]))
+            else:
+                np.savez(root / 'input/input_bbox.npz', start_end=[9, 38], bbox=np.ones((30, 4)))
+            cap = SimpleNamespace(get=lambda key: {3:640, 4:480, 5:30, 7:60}[key], release=lambda: None)
+            inspection = SimpleNamespace(load=lambda *a, **kw: (root / 'joints.bin', dict(frames=30)))
+            def measured(*args, diagnostics, **kwargs):
+                self.assertEqual(args[4], 9)
+                diagnostics.update(status='measured', cache_reused=False)
+                return {0:dict(mean_world_up=[0, 1, 0], dispersion_max_deg=0.)}
+            with patch('cv2.VideoCapture', return_value=cap), \
+                    patch.object(runtime, '_raw_camera', return_value=(rt, K, 'static')), \
+                    patch.object(runtime, '_observations', return_value=(points, True)), \
+                    patch.object(geocalib_setup, 'readiness', return_value='weights_missing' if missing else None), \
+                    patch.object(gravity, 'image_gravity', side_effect=gravity.image_gravity if missing else measured) as estimate:
+                report = runtime.build_camera(root, dict(id='fixed', params={'static_camera':True}, track_range=[9,38]),
+                                              inspection, None, 'cpu')
+            estimate.assert_called_once()
+            self.assertEqual(report['quality']['status'], 'fallback' if missing else 'image')
+            self.assertEqual(report['quality']['reason'], 'weights_missing' if missing else None)
+            self.assertEqual(runtime.digest(root / 'motion.npz'), before)
+            self.assertTrue(Camera.load(root / 'camera/camera.npz').camera_valid.all())
+
     def test_archived_raw_inputs_use_body_reference_without_loading_models(self):
         from flowhmr.multishot.runtime import build_camera, digest, save_json
         from types import SimpleNamespace

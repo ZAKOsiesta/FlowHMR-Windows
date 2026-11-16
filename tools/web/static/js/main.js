@@ -18,6 +18,7 @@ import { initUpdates } from "./update.js";
 import { initMcpDialog } from "./mcp.js";
 import { initUIEvents } from './ui-events.js';
 
+window.flowhmrStartup?.stage("initializing");
 setupLocalization();
 initMcpDialog();
 const confirmWorkspaceReady = initUpdates();
@@ -128,11 +129,20 @@ initModelDialog(async () => {
 });
 
 // ------------------------------------------------------------------ boot
-try {
-  applyModelInfo(await api.getInfo());
-  setText($("uploadHint"), m("source.size_limit", { max: info.max_upload_mb }));
-} catch {
-  applyModelInfo(null);
+window.flowhmrStartup?.stage("info");
+for (let attempt = 0; attempt < 3; attempt++) {
+  try {
+    applyModelInfo(await api.getInfo({ signal: AbortSignal.timeout(5000) }));
+    setText($("uploadHint"), m("source.size_limit", { max: info.max_upload_mb }));
+    break;
+  } catch (error) {
+    if (attempt === 2 || (error.status && error.status < 500)) {
+      applyModelInfo(null);
+      window.flowhmrStartup?.error(`Local workspace info: ${error.message}`);
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
 }
 if (info?.postprocess_available === false) {
   $("optPostprocess").disabled = true;
@@ -141,18 +151,18 @@ if (info?.postprocess_available === false) {
 params = initParams(info?.defaults ?? {}, info?.sam_manual_default ?? 24,
   !!info?.sam_hybrid_available, !!info?.camera_on_cpu_for_amd_igpu);
 if (info?.runtime?.supported) runtime.restore();
-const jobs = (await history.refresh()) ?? [];
+window.flowhmrStartup?.stage("history");
+const jobs = (await history.refresh({ signal: AbortSignal.timeout(5000) })) ?? [];
 const savedJob = localStorage.getItem("flowhmr-last-job");
 let initialJob = jobs.find((job) => job.status === "waiting_user" || job.status === "running")
   ?? jobs.find((job) => ACTIVE.has(job.status))
   ?? jobs.find((job) => job.id === savedJob);
 if (!initialJob && savedJob) {
-  try { initialJob = await api.getJob(savedJob); } catch { /* job may have been deleted */ }
+  try { initialJob = await api.getJob(savedJob, { signal: AbortSignal.timeout(5000) }); } catch { /* job may have been deleted */ }
 }
 initialJob ??= jobs.find((job) => job.status === "done") ?? jobs[0];
 if (initialJob) void openJob(initialJob.id, { restoreDraft: true });
 syncSubmit();
-if (info) confirmWorkspaceReady();
 initUIEvents();
 
 // ------------------------------------------------------------------ wiring
@@ -389,4 +399,10 @@ async function loadTracks(id, scene) {
     } catch { return null; }
   }));
   if (id === currentJob) preview.setTracks(tracks.filter(Boolean));
+}
+
+// Confirm only after all controls and event handlers have been initialized.
+if (info) {
+  window.flowhmrStartup?.stage("ready");
+  confirmWorkspaceReady();
 }

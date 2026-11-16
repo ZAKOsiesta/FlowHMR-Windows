@@ -1004,5 +1004,6 @@ export default Object.freeze({
   "camera.gravity_legacy_fallback": "This older result is degraded: some shots use body and ground estimates. Ground tilt may be inaccurate. Installing the model does not change saved results.",
   "camera.gravity_unverified": "This result has no image-gravity verification record; ground-tilt reliability is unknown.",
   "server.geocalib_runtime_missing": "Image-gravity components are missing. Repair or update the application; source-camera recovery will be degraded.",
-  "server.geocalib_unsupported_device": "This device does not support image gravity; source-camera recovery will be degraded."
+  "server.geocalib_unsupported_device": "This device does not support image gravity; source-camera recovery will be degraded.",
+  "settings.new_features_devices": "Shot linking and source-camera recovery have been validated only with NVIDIA CUDA. These two features are not yet validated on CPU, AMD or Intel graphics."
 });

@@ -178,7 +178,9 @@ def stage_release(destination, prerequisites, dinov3_source, *, bundle_cuda=Fals
         release_version(version)
     files = source_files()
     destination.mkdir(parents=True, exist_ok=False)
-    copy_files(ROOT, destination, files)
+    # Tests belong in the source archive, not in the runnable/update payload.
+    # Existing launchers intentionally reject updates outside program paths.
+    copy_files(ROOT, destination, (path for path in files if path.parts[0] != 'tests'))
     for name in SUBMODULES:
         source = ROOT / "third_party" / name
         expected = git("rev-parse", f"HEAD:third_party/{name}").strip()

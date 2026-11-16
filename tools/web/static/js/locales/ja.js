@@ -1004,5 +1004,6 @@ export default Object.freeze({
   "camera.gravity_legacy_fallback": "この過去の結果は品質が低下しています。一部のショットは人物と地面から推定しており、地面の傾きが不正確な可能性があります。モデルの導入だけでは既存の結果は変わりません。",
   "camera.gravity_unverified": "画像重力の検証記録がなく、地面の傾きの信頼性を確認できません。",
   "server.geocalib_runtime_missing": "画像重力のコンポーネントがありません。アプリを修復または更新してください。元映像カメラの品質が低下します。",
-  "server.geocalib_unsupported_device": "このデバイスは画像重力に非対応のため、元映像カメラの品質が低下します。"
+  "server.geocalib_unsupported_device": "このデバイスは画像重力に非対応のため、元映像カメラの品質が低下します。",
+  "settings.new_features_devices": "カット間の連結と元映像のカメラ復元は、現在 NVIDIA CUDA 環境でのみ検証済みです。CPU、AMD、Intel GPU でのこの 2 機能は未検証です。"
 });

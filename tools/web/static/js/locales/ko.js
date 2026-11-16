@@ -1004,5 +1004,6 @@ export default Object.freeze({
   "camera.gravity_legacy_fallback": "이전 결과의 품질이 저하되었습니다. 일부 샷은 인물과 지면 추정을 사용하여 지면 기울기가 부정확할 수 있습니다. 모델 설치만으로 기존 결과가 변경되지는 않습니다.",
   "camera.gravity_unverified": "이미지 중력 검증 기록이 없어 지면 기울기의 신뢰성을 확인할 수 없습니다.",
   "server.geocalib_runtime_missing": "이미지 중력 구성 요소가 없습니다. 앱을 복구하거나 업데이트하세요. 원본 카메라 품질이 저하됩니다.",
-  "server.geocalib_unsupported_device": "현재 장치가 이미지 중력을 지원하지 않아 원본 카메라 품질이 저하됩니다."
+  "server.geocalib_unsupported_device": "현재 장치가 이미지 중력을 지원하지 않아 원본 카메라 품질이 저하됩니다.",
+  "settings.new_features_devices": "컷 간 연결과 원본 카메라 복원은 현재 NVIDIA CUDA 환경에서만 검증되었습니다. CPU, AMD 및 Intel 그래픽에서 이 두 기능은 아직 검증되지 않았습니다."
 });

@@ -23,6 +23,14 @@ internal static class FlowHMRLauncher
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr window);
 
+    private static bool InstalledWebView2Version(string value)
+    {
+        // Edge Update can leave transient values such as "157.0.4341.42.deleting".
+        // They do not identify an installed runtime and must not skip setup.
+        Version version;
+        return Version.TryParse(value, out version) && version.Major > 0;
+    }
+
     private static bool HasWebView2()
     {
         const string client = @"SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
@@ -32,7 +40,7 @@ internal static class FlowHMRLauncher
         using (var key = root.OpenSubKey(client))
         {
             var version = key == null ? null : key.GetValue("pv") as string;
-            if (!String.IsNullOrEmpty(version) && version != "0.0.0.0") return true;
+            if (InstalledWebView2Version(version)) return true;
         }
         return false;
     }
@@ -153,6 +161,7 @@ internal static class FlowHMRLauncher
         }
         catch (Exception error)
         {
+            new DesktopUpdate(AppDomain.CurrentDomain.BaseDirectory).Record(error);
             MessageBox.Show(error.Message, "FlowHMR", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return 1;
         }

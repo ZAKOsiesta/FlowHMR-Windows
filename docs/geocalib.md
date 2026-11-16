@@ -1,94 +1,30 @@
-# GeoCalib dependency and quality contract
+# GeoCalib 依赖、模型管理与降级契约
 
-GeoCalib supplies image-gravity evidence for recovered source cameras. Basic
-motion generation remains available without the checkpoint, but fallback camera
-results must be identified as degraded. Body reconstruction, contact correction
-and the camera fitting/gating algorithms are unchanged by this integration.
+GeoCalib 用于为恢复的原片相机提供画面重力（地平线/垂直方向）先验证据，以改善地面倾角恢复。纯动作生成不依赖该模型；当 GeoCalib 权重缺失或不可用时，相机恢复会自动退回原有的“人物倾斜 + 地面约束”估计路径，并在界面与导出报告中明确标记为降级（Degraded）。
 
-## Installation and models
+---
 
-- Inference source: the unmodified subset in `third_party/geocalib_inference`,
-  pinned to `cvg/GeoCalib@1dedb29f94fc11b896c5f572005978aeebccd67f`. Its license,
-  provenance and file hashes are included. Research checkouts are not searched.
-- Runtime: `kornia==0.8.1`, with `kornia_rs==0.1.9` in the Windows lock file.
-  Installation checks import the actual bundled implementation. Release staging
-  rejects missing or mismatched dependencies and requires them in the environment
-  being copied; a developer PYTHONPATH supplement is not a complete release input.
-- Model: `models/geocalib/pinhole.tar`, 116,074,121 bytes, SHA-256
-  `86d6aeacd8bbd974c59ce39f61854e00d36911c732ad89be471476fd708722ac`.
-  Source: https://github.com/cvg/GeoCalib/releases/download/v1.0/geocalib-pinhole.tar.
-  Models supports normal public download, verification and folder import of
-  either `pinhole.tar` or the official `geocalib-pinhole.tar`. This is a PyTorch
-  checkpoint, not an archive that the user should unpack. The command-line
-  default/perception download path includes it too.
-- The model is optional for motion, explicitly labeled for source-camera ground
-  tilt. Inference checks the pinned digest before loading and always uses the
-  local checkpoint; it does not invoke upstream automatic weight downloading.
-- Portable source selection includes the vendored source. Existing program
-  updates replace `third_party` and the base runtime's `Lib`, including Kornia;
-  model weights and device environments remain separate managed data.
+## 1. 源码、运行依赖与模型权重
 
-## Completion and degradation
+- **内置推理源码**：`third_party/geocalib_inference` 包含未修改的上游推理代码子集（锁定至 `cvg/GeoCalib@1dedb29f94fc11b896c5f572005978aeebccd67f`），随附许可证、出处与文件哈希清单。程序运行与打包仅加载内置目录。
+- **运行库依赖**：`kornia==0.8.1`（Windows 锁定文件同步包含 `kornia_rs==0.1.9`）。安装自检会实际校验内置组件的导入情况；便携版更新时会同步替换 `third_party` 与基础环境的 `Lib` 目录。
+- **模型权重与校验**：
+  - 本地存放路径：`models/geocalib/pinhole.tar`（大小：`116,074,121` 字节，SHA-256：`86d6aeacd8bbd974c59ce39f61854e00d36911c732ad89be471476fd708722ac`）。
+  - 官方下载地址：`https://github.com/cvg/GeoCalib/releases/download/v1.0/geocalib-pinhole.tar`。
+  - **模型** 管理面板及命令行下载脚本（默认/感知模型组）均支持一键下载、SHA-256 校验，以及从本地文件夹导入 `pinhole.tar` 或 `geocalib-pinhole.tar`（注：该 `.tar` 文件为 PyTorch 权重文件，无需手动解压）。
+  - 推理加载前会强制校验本地权重的 SHA-256 摘要，绝不会在推理过程中静默联网下载。
 
-`camera_state=ready` means the camera was saved successfully. It is not a quality
-guarantee. Camera status, the job response, viewer camera JSON and exported
-reports include `quality`: `status`, `degraded`, `reason`, `fallback_shots` and
-`total_shots`. Shot identifiers are the report's original IDs, not list offsets.
+---
 
-New recovery reports also retain `gravity`: the component revision, model hash,
-cache reuse, availability, failure category and technical failure detail where
-applicable. Reasons distinguish missing/corrupt weights, missing runtime,
-unsupported device, inference failure and unstable image measurements. Historical
-reports may also carry the previous `static_camera` bypass reason. Cancellation
-still cancels. Cache reuse requires the same source
-revision and checkpoint and does not bypass readiness checks.
+## 2. 相机完成状态与降级提示
 
-The task completion summary and source-camera viewport display persistent,
-localized warnings. Older reports derive the warning from their recorded
-`gravity_source`; reading them does not rewrite stored jobs. A report with no
-quality evidence is marked unverified. Shared-scene cameras retain their
-separate shared-world contract. Installing GeoCalib does not retroactively
-recompute an existing camera. New source-camera recovery uses GeoCalib for static
-generation jobs too, on both ordinary and linked-shot inputs. Static generation
-still skips VGGT. A static camera can be tilted relative to the ground, so the
-static setting does not imply that image gravity is unnecessary. Frozen research
-input archives retain their explicitly recorded gravity rather than re-estimating it.
-
-## Verification on 2026-11-16
-
-- 179 automated tests passed, including missing/same-size-corrupt checkpoints,
-  loading errors, cancellation, official import names, CLI download, completed
-  task/HTTP/MCP/export warnings, and historical result reads without mutation.
-- Seven UI languages / 1,005 keys and placeholder checks passed; JavaScript
-  syntax and fractional-frame/gap/cut sampling checks passed.
-- Fresh official checkpoint download and local folder import passed with the
-  published size and SHA-256. Fresh installed Kornia wheels were used in an
-  isolated product supplement, without changing the shared legacy environment.
-- Real fresh GeoCalib inference and camera recovery ran on a frozen 3,056-frame
-  motion (2,950 valid frames). Of 53 fitted shots, 52 used image gravity and one
-  used the existing stability fallback. Missing and truncated weights in separate
-  model directories each produced explicit full fallback. All three motion
-  files stayed byte-identical; this was camera-only replay, not new motion inference.
-- Real UI checks confirmed model readiness and distinct missing, damaged,
-  unstable and historical warnings. Installation checks reported available
-  image gravity and passed CUDA matrix multiplication/NMS.
-- The upstream NMF module initializes random bases. The fresh unseeded run is not
-  bit-identical to old cached gravity. With seed 31417, original and vendored
-  source gave exactly equal gravity vectors at source frames 90, 1596 and 2838.
-- After optional-component checks/download handling and static recovery were
-  updated, all 186 tests passed. The two new static recovery tests cover ordinary
-  and linked inputs with image gravity and explicit missing-model fallback.
-- On an actual 836-frame static-generation job, fresh CUDA GeoCalib inference
-  supplied image gravity for the single shot (`quality.status=image`, measured
-  direction dispersion 0.530 degrees). A separate empty model directory produced
-  `fallback/weights_missing`. All 836 camera frames remained valid in both runs;
-  source and replay motion files were byte-identical. Existing static-camera and
-  SAM observations were reused; motion generation was not run again.
-
-This is integration validation, not a clean-machine release sign-off. Building
-and installing the complete portable release and exercising a real old-to-new
-update remain release gates. CPU camera recovery, ROCm and XPU quality have not
-been newly validated. Odette playback and the two specified movement intervals
-passed visual review; the historical contact-policy numerical difference remains
-documented in the validation notes. New static recovery evidence is an integration
-check, not a claim that its visual quality or all footage has been accepted.
+- **质量字段（`quality`）**：
+  - `camera_state=ready` 仅代表相机文件解算并保存成功，不代表图像重力一定生效。
+  - 相机状态接口、任务详情、前端预览相机 JSON 以及随包导出的报告均包含 `quality` 字段：`status`、`degraded`、`reason`、`fallback_shots` 与 `total_shots`（镜头编号对应报告中的原始 `shot_id`）。
+  - 新生成的恢复报告还包含 `gravity` 元数据，记录组件版本、权重哈希、缓存复用状态、可用性及具体回退原因（区分权重缺失/损坏、运行库缺失、设备不支持、推理异常及单镜头图像估计不稳定）。
+- **固定机位与运动机位模式**：
+  - 无论是运动相机模式还是默认固定机位模式（`static_camera=True`，动作生成阶段仍跳过 VGGT），在按需恢复原片机位时均会调用 GeoCalib（固定拍摄的相机画面同样可能相对地面存在俯仰或倾斜）。
+  - 缓存复用要求组件版本与权重哈希同时匹配。
+- **界面提示与历史任务兼容**：
+  - 当发生回退时，任务完成摘要与原片机位视图上方会显示本地化的常驻降级提示（例如缺少模型时提示“缺少GeoCalib模型，恢复摄像机的地面倾角可能不准确。”）。
+  - 读取旧版本生成的任务时，系统会根据其记录的 `gravity_source`（含旧版固定机位跳过图像重力的 `static_camera` 原因）推导提示信息，不会改写已保存的历史任务文件。后续下载安装 GeoCalib 权重不会自动重算已存在的相机文件；如需使用新模型，可重新触发相机恢复。

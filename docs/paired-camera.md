@@ -1,62 +1,76 @@
-# Paired camera export
+# 配套相机恢复与导出
 
-Completed jobs support **View → Source camera** for the source body and PMX characters. The first click recovers the camera when needed. **Include camera** in VMD, FlowHMR FBX and NPZ export also triggers recovery. The downloaded ZIP contains independent motion and camera files, full camera parameters, a recovery/approximation report and import instructions.
+已完成动作生成的任务支持对源人体（SMPL-H）及 PMX 角色开启 **视图 → 原片机位**。首次点击时会自动按需排队恢复相机；在导出 `VMD`、`FlowHMR FBX` 或 `NPZ` 时勾选 **同时导出相机** 同样会触发相机恢复。导出的 `.zip` 压缩包内含独立的人物动作文件、相机文件、完整相机参数、恢复/近似说明报告及导入指南。
 
-Camera recovery shares the existing job queue, with separate queued/running/ready/failed/cancelled state. Stop affects only the camera when motion is complete. Click Source camera again to retry a failed or cancelled recovery. Missing outputs are rebuilt; validated raw-camera and SAM caches are reused. Older jobs need their normalized source video and detection boxes. Missing person observations run SAM only, never Flow generation. GeoCalib inference is bundled and its checkpoint is managed in Models. Missing, corrupt, unsupported or unstable image gravity uses the existing body/ground fallback, with a persistent degradation warning. Jobs generated in the default static-camera mode (`static_camera=True`) also use GeoCalib when recovering Source camera, for both ordinary and linked-shot inputs. Static generation still skips VGGT; image gravity is estimated only during camera recovery and does not change the generated motion. A ready result may be degraded: callers must inspect `quality.degraded`, `quality.reason` and `quality.fallback_shots`. Installing the model or updating the application does not automatically rebuild a saved camera; historical `static_camera` warnings remain readable. See [GeoCalib installation and quality](geocalib.md).
+---
 
-The numerical recovery boundary takes joint arrays, camera matrices, observations and validity. Body-reference selection belongs to the existing inspection loader. No camera operation writes poses, shape parameters or motion files. Failures are reported independently and valid shots remain usable. Without a trusted scale population, unsupported camera motion becomes a fixed person-anchored center with slow rotation. Shots shorter than 12 frames retain only their fixed similarity. Low-visibility person residuals are diagnostic and do not veto the stability policy chosen in V3.
+## 1. 任务队列与执行机制
 
-## Person overlap and occlusion
+- **状态解耦**：相机恢复共用现有任务队列，但拥有独立的 `queued / running / ready / failed / cancelled` 状态。当人物动作已完成时，点击停止只会取消相机计算，绝不会修改或冲掉已生成的动作、体型参数或动作文件。
+- **缓存复用与重试**：点击“原片机位”可随时重试失败或已取消的相机恢复。已通过校验的原始相机与 SAM 缓存会被直接复用；若缺少人物关节观测，仅补跑 SAM 特征提取，不会重新运行 FlowHMR 动作生成（历史旧任务需保留标准化后的源视频与检测框缓存）。
+- **GeoCalib 图像重力与回退**：
+  - GeoCalib 推理源码已随应用内置，模型权重可在 **模型** 面板中下载管理。
+  - 无论是运动相机模式还是默认固定机位模式（`static_camera=True`，生成阶段跳过 VGGT）生成的任务，在恢复原片机位时均会使用 GeoCalib 估计地面倾角。
+  - 当权重缺失、损坏、设备不支持或单镜头图像重力估计不稳定时，系统会自动回退到原有的“人物倾斜 + 地面约束”估计路径，并常驻显示降级提示。
+  - `camera_state=ready` 仅表示相机解算完成，调用方可通过 `quality.degraded`、`quality.reason` 和 `quality.fallback_shots` 查看是否存在降级。后续安装模型或更新程序不会自动重算已保存的相机结果（历史报告中的 `static_camera` 降级提示仍可正常读取）。详见 [GeoCalib 说明](geocalib.md)。
+- **数值恢复与兜底规则**：
+  - 单个镜头解算失败会独立报告，其余有效镜头仍可正常使用。
+  - 当全片缺乏可靠的相机位移尺度样本时，无法支撑大位移解算的镜头会退回以人物为锚点的定点慢速旋转中心；不足 12 帧的短镜头仅保留固定相似变换。
+- **服务与 HTTP 接口**：后端入口为 `CameraTasks.prepare / status / cancel / run`，对应 HTTP 路由 `/camera/prepare`、`/camera/status`、`/camera/cancel`、`/camera/report` 与 `/camera/export`。排队或运行中调用 `prepare` 返回 `202`；相机文件在核对冻结动作摘要无误后以原子方式落盘。
 
-Paired camera recovery depends on the selected person's detection/track boxes: SAM-3D-Body uses those boxes to extract camera-space joint observations, which are matched to the frozen motion for camera alignment and used by the motion-stability gate. Reusing cached observations retains this dependency. The numerical fit does not directly follow a detection-box centre. VGGT estimates the raw camera from source images; GeoCalib estimates gravity from source images and does not use the selected person's box.
+---
 
-When people overlap, cross in front of each other or substantially occlude the selected person, inaccurate boxes, track association or inferred joints can contaminate these person observations. This can affect the recovered camera's position, scale, orientation and stability, even when only one person is selected from a multi-person video. The current in-image/positive-depth joint checks do not establish that a joint is unoccluded or belongs to the intended person. Recovery does not perform reliable inter-person occlusion reasoning or joint-identity validation. Robust fitting, existing validity checks and GeoCalib do not guarantee rejection of these errors.
+<a id="person-overlap-and-occlusion"></a>
+## 2. 人物重叠与遮挡限制
 
-Treat overlapping-person footage as a known limitation requiring visual review. A completed camera, a trusted-shot label or `quality.degraded=false` is not evidence that overlap was handled correctly; the quality field primarily describes the gravity estimation path. User review has identified poorer results during overlap, but the contributions of detection boxes, tracking, pose inference and raw camera estimation have not been isolated for those frames. Multi-person cut linking remains unsupported separately from this limitation.
+配套相机恢复依赖所选人物的检测与跟踪框：SAM-3D-Body 从这些框中提取相机空间下的关节观测，用于与冻结动作对齐并参与相机运动稳定性门控（复用缓存观测时同样保留这一依赖）。VGGT 与 GeoCalib 则直接从源视频图像估计原始相机轨迹与画面重力，不使用人物检测框。
 
-Group scenes persist the exact shared rotation, scale and origin from `build_group_scene`. Lazy export uses that common frame. For old scenes, only the missing common-camera evidence is recovered while saved scene placements, scale and motion files remain unchanged. Multi-person cut linking is not supported. When selected characters have different scales, the camera follows the first selected character. For scene placement `R,p`, its affine shift is `R b + (1-k)p`; no individual actor camera is used as a scene camera.
+当视频中出现**多人重叠、交叉走位或明显遮挡所选人物**时，即便只选择了单人，检测框偏移、跟踪串人或被遮挡关节的姿态推断误差仍可能污染关节观测，进而影响恢复相机的位置、尺度、朝向和稳定性：
+- 当前的“关节投影在画面内且深度为正”检查无法判断关节是否被遮挡，也无法验证关节是否真正属于目标人物。
+- 鲁棒拟合、现有有效性检查以及 GeoCalib 图像重力均无法消除人物观测归属错误。
+- 因此，包含多人交叠的素材属于已知限制，需通过人工回放确认效果；相机状态为 `ready`、镜头标记为 `trusted` 或 `quality.degraded=false`（主要反映重力估计路径）均不代表遮挡片段处理无误。
 
-The service boundary is `CameraTasks.prepare/status/cancel/run`; HTTP routes are `/camera/prepare`, `/camera/status`, `/camera/cancel`, `/camera/report` and `/camera/export`. Preparation returns 202 while queued/running. Existing motion job state stays `done`. A camera file is committed atomically after the frozen motion digest is checked.
+多人场景（Group scenes）沿用 `build_group_scene` 保存的公共旋转、尺度与原点；当场景内所选角色体型缩放比例不同时，公共相机跟随首个选中的角色。多人模式的跨镜头切镜连接暂不支持。
 
-## Data contract
+---
 
-`motion.npz` may carry a boolean `valid_frames[N]` and a source-frame `track_start`. Motion arrays retain the original frame count. Before the first valid frame, hold that first pose; later gaps hold the preceding valid pose. The preview hides gaps and VMD writes adjacent display keys at every transition. FBX/VRMA downloads with gaps include a report because a portable display track is not assumed.
+## 3. 数据结构契约
 
-`camera/camera.npz` version 1 contains:
+`motion.npz` 可包含布尔数组 `valid_frames[N]` 与源视频起始帧 `track_start`，动作数组长度保持与源区间总帧数一致。首个有效帧之前保持首帧姿态，后续空档区间保持前一个有效帧姿态。前端预览会自动隐藏空档期人物，导出 `VMD` 时会在每次有效/空档切换处写入相邻的显示开关关键帧（`FBX / VRMA` 含空档时随包附带说明报告）。
 
-| Field | Meaning |
+`camera/camera.npz`（版本 `1`）包含以下字段：
+
+| 字段 | 含义 |
 | --- | --- |
-| `RT[N,4,4]` | Paired motion world to OpenCV camera, Y-up world in metres |
-| `K[N,3,3]` | Full-image pixel intrinsics |
-| `camera_valid[N]` | Independent camera validity |
-| `shot_ids[N]` | Integer shot identity; no interpolation or smoothing across cuts |
-| `track_start` | First track frame in the normalized source timeline |
-| `fps` | 30 |
-| `image_size_hw[2]` | Source image height and width |
-| `version` | 1 |
+| `RT[N,4,4]` | 配套动作世界坐标系（Y 轴朝上，单位：米）到 OpenCV 相机坐标系的变换矩阵 |
+| `K[N,3,3]` | 完整图像像素内参矩阵 |
+| `camera_valid[N]` | 相机逐帧独立有效性标记 |
+| `shot_ids[N]` | 整数镜头编号（跨切镜不做任何插值或平滑） |
+| `track_start` | 标准化源视频时间轴上的起始帧号 |
+| `fps` | `30` |
+| `image_size_hw[2]` | 源视频画面高度与宽度 |
+| `version` | `1` |
 
-The preview uses full intrinsics and letterboxing. Its automatic floor reads the
-declared final motion ground; it no longer applies the historical 0.015 m display
-offset. Linked segments are translated by one constant vertical offset per segment
-to their common correction ground, with their native estimates retained in the
-report. This is separate from the viewer's manual display-ground control.
+前端原片机位预览使用完整内参并自动添加画幅黑边（Letterboxing）。自动地面高度直接读取动作后处理声明的最终地面；跨镜头连接任务中，各有效生成段按每段恒定的垂直偏移对齐到公共修正地面，同时在报告中保留各段的原生地面估计值。
 
-## PMX scale and height
+---
 
-Use the actual PMX solver transform, including its hip-height adjustment. If `k` is the target/source leg-length ratio and `a` is the standing-pelvis anchor, the root mapping is `p' = k p + b`, where `b = (1-k)a + [0, targetHipHeight-sourceHipHeight, 0]`. Camera centres and the reference joints use the same `k,b`; camera rotation and intrinsics do not change. This also represents equal leg lengths with different hip heights, for which a scale-about-one-point expression is singular.
+## 4. PMX 体型缩放与臀高适配
 
-These values come from the selected character solver. The user does not enter them. Source-camera preview for FBX/VRM characters remains disabled until their transforms are explicitly supported.
+配套相机直接复用所选 PMX 角色解算器的实际变换（含臀高调整）。设 $k$ 为目标角色与源人体的腿长比例，$a$ 为站立骨盆锚点，则根节点映射为：
 
-## Formats and import
+$$p' = k \cdot p + b, \quad b = (1 - k)a + [0, \text{targetHipHeight} - \text{sourceHipHeight}, 0]$$
 
-VMD uses one rounded median vertical FOV per shot. Optical-axis movement compensates the focal change at the median body-joint depth. It preserves dense source-frame keys, omits invalid-camera keys and unwraps angles only within each shot. MMD units are 0.08 m; Z is mirrored. Unequal focal lengths, principal point offsets and depth-dependent perspective differences remain approximations, listed in `export-report.json`.
+相机中心与参考关节同步应用相同的 $(k, b)$ 变换，相机旋转与内参保持不变（该表达同样适用于腿长相同但臀高不同的角色）。变换参数由角色解算器自动提取，无需手动输入。`FBX / VRM` 角色的原片机位预览在完成专用变换适配前保持禁用。
 
-Camera FBX is a separate Y-up, metre scene. It averages `fx` and `fy`, centres the principal point and reports the loss. NPZ and JSON retain full intrinsics and validity. JSON/NPZ in a PMX export are expressed in the selected character's transformed world.
+---
 
-For Blender mmd_tools, import the original PMX and both VMD files with scale **0.08**, current frame **0**, and frame margin **0**. Enable **Use Property Driver** on the model root so display and IK keys are evaluated. The package does not contain character models or textures. Camera-only gaps cannot be represented as a camera visibility track in VMD/FBX; consult the sidecar rather than interpreting interpolated player frames as valid estimates.
+## 5. 导出格式与 Blender 导入指南
 
-## Verification boundary
-
-The Jimingyue P1 fixture was checked in the visible Blender 5.2.1 window with installed mmd_tools. The original full intrinsics and all valid body frames remain unchanged. Odette PMX was exported in the browser and imported with its camera. At 53 shots × first/middle/last, all 159 raster silhouette bounds fit the measured analytic full-intrinsics-to-VMD approximation plus 2 source pixels. Six gap boundary renders are empty. Camera-only import errors are below 0.002 source pixels for both VMD and FBX.
-
-This is evidence for that fixture and character. The approximation calculation includes focal anisotropy and principal point limitations; it is not a universal bound derived from integer FOV rounding alone. Visual review accepted Odette PMX source-camera playback and found no obvious movement problem at 17.1 s or 50.2–51.3 s in the product's fixed observation view. This does not establish better foot contact than the historical version. For a separate 836-frame static-generation fixture, fresh GeoCalib recovery used image gravity for its single shot; recovery without the model completed with an explicit `weights_missing` fallback. Both preserved the motion bytes and all 836 valid camera frames. These numerical/integration results do not constitute visual acceptance of the newly recovered static camera. Cold SAM runs can differ numerically even on the upstream baseline, and newly written FBX files can differ in bytes despite matching animation content. See [validation notes](product-validation.md) for the repeatability checks and their limits.
+- **MMD VMD**：每个镜头使用一个取整后的中位垂直视角（FOV），并通过沿光轴方向的位移在身体关节中位深度处补偿焦距取整带来的透视变化。保留逐帧密集关键帧，跳过无效相机帧，且仅在单镜头内部做角度连续展开。MMD 单位为 `0.08 m`，Z 轴镜像。焦距各向异性（$f_x \neq f_y$）、主点偏移及不同深度处的透视差异属于格式固有近似，详见随包导出的 `export-report.json`。
+- **Camera FBX**：独立的 Y 轴朝上、米制场景文件。对 $f_x$ 与 $f_y$ 取均值并将主点居中，近似损失记录于报告中。
+- **NPZ / JSON**：保留无损浮点内参、外参与有效性标记；从 PMX 角色导出时，坐标已转换至该角色的目标世界坐标系。
+- **Blender (`mmd_tools`) 导入设置**：
+  1. 导入原始 PMX 模型以及配套导出的人物 VMD 与相机 VMD，将缩放（Scale）均设为 **`0.08`**、起始帧设为 **`0`**、帧边距（Frame Margin）设为 **`0`**。
+  2. 在模型根节点上勾选 **Use Property Driver**，使显示隐藏关键帧与 IK 开关正常生效。
+  3. 导出包不包含角色模型与贴图文件。若遇到仅相机无效的空档帧，`VMD / FBX` 无独立的相机可见性轨道，请参考随包报告中的有效区间说明。

@@ -52,8 +52,9 @@ from flowhmr.utils.runtime_preview_inspection import PreviewInspection
 from flowhmr.utils.runtime_preview_thumbnail import ensure_thumbnail
 from flowhmr.core.bodymodels.body_variants import available_variants, model_path, write_preview_vertices
 from flowhmr.model_files import (
-    HAMER_FILES, MODEL_ROOT, SAM3D_FILES, VGGT, SMPLH_FILES, core_model_paths, ensure_model_folders,
-    flowhmr_paths, missing_model_paths, resolve_model, smplh_reference,
+    FLOWHMR_BASE_FILES, HAMER_FILES, MODEL_ROOT, SAM3D_FILES, VGGT, SMPLH_FILES, core_model_paths,
+    ensure_model_folders, flowhmr_base_paths, flowhmr_paths, missing_model_paths, resolve_model,
+    smplh_reference, torso_optimization_available,
 )
 from flowhmr import model_integrity
 from flowhmr.character_files import CharacterFiles, KEY_ENV as CHARACTER_KEY_ENV, MAX_MODEL_BYTES
@@ -398,6 +399,7 @@ DEFAULT_PARAMS = {
     "correction_floor_m": None, "correction_preset": "strong",
     "sole_fit": True, "sole_fit_strength": SOLE_FIT_REFERENCE_STRENGTH,
     "smoothing_frames": 0.12, "hamer": False, "hamer_stride": 1,  # 0.04 on the 0–1 slider
+    "torso_opt": False,
 }
 
 
@@ -522,6 +524,7 @@ def parse_params(src, base=None):
         "sole_fit_strength": sole_fit_strength,
         "manual_select": _to_bool(src.get("manual_select"), base.get("manual_select", True)),
         "static_camera": _to_bool(src.get("static_camera"), base["static_camera"] and vggt_interval == 0),
+        "torso_opt": _to_bool(src.get("torso_opt"), base["torso_opt"]),
     }
 
 
@@ -1027,6 +1030,77 @@ def _assemble_scene(batch, *, automatic):
         traceback.print_exc()
 
 
+def run_torso_optimization(job_id, engine, params, sub_dir, result, standard_motion):
+    """Re-run generation with the optional base checkpoint, then compose torso motion.
+
+    The second pass reuses the cached detection, camera and SAM features of this
+    job, so it only repeats model loading, generation and the configured
+    postprocess. The base torso local rotations are kept, while the standard
+    result's world-space ankles and foot orientation are restored by leg IK.
+    """
+    from flowhmr.pipeline.v2m_inference import StageName, build_pipeline, load_yaml
+    from flowhmr.utils.runtime_torso_optimization import compose_torso_optimization, save_composed_motion
+
+    base_ckpt, base_cfg = flowhmr_base_paths()
+    base_suffix = "" if params["postprocess"] else "_origin"
+    base_result = os.path.join(sub_dir, f"{SUB}_seed{params['seed']}{base_suffix}")
+    latest_report = getattr(engine.postprocess, "last_report", None) if engine.postprocess is not None else None
+    latest_pipeline = engine.pipeline
+    staged = getattr(engine, "_staged_models", None) or {}
+    staged_generation = staged.get(StageName.GENERATION)
+    base_pipeline = None
+    try:
+        if staged:
+            # Low-VRAM mode keeps the generation network on the CPU between stages;
+            # register the base network in the same slot so activation still works.
+            engine._activate_stage()
+        base_pipeline = build_pipeline(
+            load_yaml(str(base_cfg)), device="cpu" if staged else str(engine.device), ckpt=str(base_ckpt),
+            validation_steps=params["steps"], smpl_model_path=str(engine.smpl_model_path))
+        engine.pipeline = base_pipeline
+        if staged:
+            staged[StageName.GENERATION] = (base_pipeline, None)
+            engine._active_stage = None
+        engine.process_video(
+            input_video(job_id), job_dir(job_id), seed=params["seed"], cfg_scale=params["cfg_scale"],
+            max_frames=None if params["auto_frames"] else params["max_frames"],
+            start_frame=params["start_frame"], end_frame=params["end_frame"],
+            smoothing_frames=params["smoothing_frames"], hamer=False, hamer_stride=1,
+            vggt_frame_interval=params["vggt_interval"],
+            static_camera=params.get("static_camera", False),
+            sam_chunk_size=params.get("sam_chunk_size", DEFAULT_PARAMS["sam_chunk_size"]),
+            sam_hand_stride=params["sam_hand_stride"],
+            person_selector=None, progress_callback=None,
+            cancel_check=lambda: _raise_if_cancelled(job_id))
+        _raise_if_cancelled(job_id)
+        if not os.path.exists(base_result + ".npz"):
+            raise FileNotFoundError(f"torso base output missing: {base_result}.npz")
+        with np.load(base_result + ".npz", allow_pickle=True) as base_data:
+            base_motion = {key: np.array(base_data[key], copy=True) for key in base_data.files}
+    finally:
+        engine.pipeline = latest_pipeline
+        if latest_report is not None:
+            engine.postprocess.last_report = latest_report
+        if staged and staged_generation is not None:
+            staged[StageName.GENERATION] = staged_generation
+            engine._active_stage = None
+            try:
+                engine._activate_stage()
+            except Exception:  # Park whatever is resident; the next job can reactivate.
+                pass
+        if base_pipeline is not None:
+            del base_pipeline
+            import gc
+            gc.collect()
+            cuda = getattr(sys.modules.get("torch"), "cuda", None)
+            if getattr(cuda, "is_initialized", lambda: False)():
+                cuda.empty_cache()
+    composed, metrics = compose_torso_optimization(
+        base_motion, standard_motion, engine.smpl_model_path, body_reference=engine.body_reference)
+    save_composed_motion(composed, result, engine.smpl_model_path)
+    return metrics
+
+
 def run_job(job_id):
     _raise_if_cancelled(job_id)
     with JOBS_LOCK:
@@ -1040,6 +1114,9 @@ def run_job(job_id):
             if str(ARGS.device).split(":", 1)[0] in ("cpu", "xpu"):
                 raise UserMessage(HAMER_ISSUES["hamer_gpu_required"], "hamer_gpu_required")
             raise UserMessage(MISSING_HAMER, "hamer_not_ready")
+        if params.get("torso_opt") and not torso_optimization_available():
+            raise UserMessage("请先在右上角「模型」下载可选的 FlowHMR 躯干模型（base），再开启躯干动作优化。",
+                              "torso_model_missing")
         loading_models = (ENGINE is None or ENGINE.body_reference != (requested_reference or smplh_reference())
                           or ENGINE.sam_backend != sam_backend)
         job.update(status="running", loading_models=loading_models, started=time.time(),
@@ -1048,6 +1125,8 @@ def run_job(job_id):
 
     if params["hamer"] and RUNTIME.cuda_variant() == "cu121":
         _check_cu121_weights(tuple(map(resolve_model, HAMER_FILES)))
+    if params.get("torso_opt") and RUNTIME.cuda_variant() == "cu121":
+        _check_cu121_weights(tuple(map(resolve_model, FLOWHMR_BASE_FILES)))
 
     def on_progress(stage, progress, desc):
         idx = STAGE_INDEX.get(getattr(stage, "value", str(stage)))
@@ -1147,6 +1226,19 @@ def run_job(job_id):
     result = os.path.join(sub_dir, f"{SUB}_seed{params['seed']}{final_suffix}")
     if not os.path.exists(result + ".npz"):
         raise FileNotFoundError(f"generation output missing: {result}.npz")
+
+    if params.get("torso_opt"):
+        _raise_if_cancelled(job_id)
+        update_job(job_id, message="正在生成躯干优化动作（base 检查点）")
+        correction_report = getattr(engine.postprocess, "last_report", None) if params["postprocess"] else None
+        # The standard result is the source of truth for feet, shape and root motion.
+        with np.load(result + ".npz", allow_pickle=True) as standard:
+            standard_motion = {key: np.array(standard[key], copy=True) for key in standard.files}
+        torso = run_torso_optimization(job_id, engine, params, sub_dir, result, standard_motion)
+        if correction_report is not None:
+            engine.postprocess.last_report = correction_report
+        update_job(job_id, torso_opt=torso)
+        _raise_if_cancelled(job_id)
 
     update_job(job_id, message="Building 3D mesh")
     out_root = job_dir(job_id)
@@ -1734,6 +1826,7 @@ def api_info():
         "max_upload_mb": app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024),
         "postprocess_available": native_correction_available(),
         "hamer_available": any(item["id"] == "hamer" and item["status"] == "ready" for item in inventory["items"]),
+        "torso_available": torso_optimization_available(),
         "body_variants": available_variants(),
         "body_reference": smplh_reference(),
         "sam_manual_default": getattr(ARGS, "sam_chunk_default", 16),

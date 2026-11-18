@@ -116,6 +116,10 @@ function applyModelInfo(next) {
   $("optHamer").disabled = !hamerReady;
   setText($("hamerHint"), m(hamerReady ? "hamer.hint" : "hamer.missing_hint"));
   params?.refreshHamer();
+  const torsoReady = !!info?.torso_available;
+  $("optTorso").disabled = !torsoReady;
+  setText($("torsoHint"), m(torsoReady ? "torso.hint" : "torso.missing"));
+  params?.refreshTorso();
   params?.setHybridAvailable(!!info?.sam_hybrid_available);
   params?.setCameraOnCpuForAmdIgpu(!!info?.camera_on_cpu_for_amd_igpu);
   if (variantsChanged) viewer.setBodyVariants(info?.body_variants, info?.body_reference);

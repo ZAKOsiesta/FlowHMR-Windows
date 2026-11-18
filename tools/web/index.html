@@ -190,6 +190,13 @@
           </div>
           <button type="button" class="toggle" id="optHamer" role="switch" aria-label="HaMeR 手指精修" aria-checked="false" aria-describedby="hamerHint" data-i18n-label="hamer.title"><span class="toggle-knob"></span></button>
         </div>
+        <div class="setting-row" title="用 base 检查点多生成一次，只取骨盆、脊柱、颈头和头部的动作，并保持原动作的脚部位置。需要可选的「FlowHMR 躯干模型（base）」，可在「模型」中下载。" data-i18n-title="torso.tooltip">
+          <div>
+            <div class="setting-label" data-i18n="torso.title">躯干动作优化</div>
+            <div class="setting-help" id="torsoHint" data-i18n="torso.hint">略微增加耗时，显著提升扭跨等躯干动作质量</div>
+          </div>
+          <button type="button" class="toggle" id="optTorso" role="switch" aria-label="躯干动作优化" aria-checked="false" aria-describedby="torsoHint" data-i18n-label="torso.title"><span class="toggle-knob"></span></button>
+        </div>
         <label class="field camera-mode hidden" id="hamerSamplingRow">
           <span data-i18n="hamer.stride">手指采样间隔</span>
           <select class="input" id="optHamerStride" aria-describedby="hamerSamplingHint">

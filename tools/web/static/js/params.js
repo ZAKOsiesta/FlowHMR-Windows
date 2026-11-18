@@ -36,6 +36,7 @@ export function initParams(defaults, manualBatchDefault, hybridAvailable = false
   const hamerSamplingSupported = defaults?.hamer_stride != null;
   const syncHamer = () => show("hamerSamplingRow", hamerSamplingSupported && !hamerButton.disabled && hamer.get());
   hamerButton.addEventListener("click", syncHamer);
+  const torso = bindToggle("optTorso"), torsoButton = $("optTorso");
   const soleFitSlider = $("optSoleFitStrength"), soleFit = $("optSoleFitValue");
   const autoBatch = bindToggle("optSamAuto");
   const cameraMode = $("optCameraMode");
@@ -113,6 +114,7 @@ export function initParams(defaults, manualBatchDefault, hybridAvailable = false
     shotLinking.value = p.shot_linking ?? 'off';
     post.set(!$("optPostprocess").disabled && !!p.postprocess);
     hamer.set(!hamerButton.disabled && !!p.hamer);
+    torso.set(!torsoButton.disabled && !!p.torso_opt);
     hamerStride.value = p.hamer_stride ?? 1;
     samHandStride.value = p.sam_hand_stride ?? 1;
     samBackend.value = p.sam_backend === "hybrid" ? "hybrid" : "gpu";
@@ -148,6 +150,7 @@ export function initParams(defaults, manualBatchDefault, hybridAvailable = false
       postprocess: post.get(),
       hamer: !hamerButton.disabled && hamer.get(),
       hamer_stride: Number(hamerStride.value),
+      torso_opt: !torsoButton.disabled && torso.get(),
       correction_preset: footLockPreset.value,
       sole_fit_strength: validStrength(strength) ? strength : 0,
       correction_floor_m: !remember && post.get() && correctionGround.value === "manual" ? correctionHeight.valueAsNumber : null,
@@ -211,7 +214,7 @@ export function initParams(defaults, manualBatchDefault, hybridAvailable = false
     rememberSettings();
   });
   for (const input of [footLockPreset, hamerStride, samHandStride, samBackend, shotLinking]) input.addEventListener("change", rememberSettings);
-  for (const id of ["optManual", "optPostprocess", "optHamer", "optSamAuto"]) $(id).addEventListener("click", rememberSettings);
+  for (const id of ["optManual", "optPostprocess", "optHamer", "optTorso", "optSamAuto"]) $(id).addEventListener("click", rememberSettings);
 
   const suggestCorrectionHeight = (report) => {
     if (report?.automatic && correctionGround.value === "auto") correctionHeight.value = report.floor_m.toFixed(3);
@@ -229,6 +232,9 @@ export function initParams(defaults, manualBatchDefault, hybridAvailable = false
     refreshHamer() {
       if (hamerButton.disabled) hamer.set(false);
       syncHamer();
+    },
+    refreshTorso() {
+      if (torsoButton.disabled) torso.set(false);
     },
     openJob(id, params, correction, restoreDraft) {
       jobId = id;

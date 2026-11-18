@@ -54,6 +54,23 @@ class TorsoOptimizationTest(unittest.TestCase):
     def test_torso_rotations_come_from_base(self):
         self.assertTrue(np.array_equal(self.composed["poses"][:, TORSO_JOINTS], self.base["poses"][:, TORSO_JOINTS]))
 
+    def test_linked_composition_preserves_gaps_and_refuses_shifted_source(self):
+        from flowhmr.multishot.torso import compose_linked
+        valid = np.array([True, True, True, False, False, True, True, True])
+        standard = dict(self.latest, valid_frames=valid, source_frames=np.arange(120, 128))
+        spans = [(120, 123), (125, 128)]
+        def generate(start, stop):
+            section = slice(start - 120, stop - 120)
+            return dict(self.base, poses=self.base["poses"][section], trans=self.base["trans"][section],
+                        source_frames=np.arange(start, stop))
+        result, _ = compose_linked(standard, spans, generate, smplh_reference_path("neutral"))
+        np.testing.assert_array_equal(result["source_frames"], np.arange(120, 128))
+        np.testing.assert_array_equal(result["valid_frames"], valid)
+        np.testing.assert_array_equal(result["poses"][valid][:, TORSO_JOINTS], self.base["poses"][valid][:, TORSO_JOINTS])
+        with self.assertRaisesRegex(ValueError, "120:123"):
+            compose_linked(standard, spans, lambda start, stop: generate(start+1, stop+1),
+                           smplh_reference_path("neutral"))
+
     def test_other_rotations_stay_from_standard_run(self):
         untouched = [j for j in range(52) if j not in TORSO_JOINTS + tuple(LEG_JOINTS)]
         self.assertTrue(np.array_equal(self.composed["poses"][:, untouched], self.latest["poses"][:, untouched]))

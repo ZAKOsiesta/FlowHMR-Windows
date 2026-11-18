@@ -5,6 +5,7 @@ remain array operations; short-gap visibility checks use source image evidence.
 """
 import json
 import copy
+from tempfile import TemporaryDirectory
 from pathlib import Path
 import numpy as np
 
@@ -218,7 +219,7 @@ def _join_motion(parts, valid, first):
 
 def process_linked(engine, video, sub_dir, name, meta, shots, *, detection_range, person_selector,
                    progress, details, check, seed, cfg_scale, static_camera, vggt_interval,
-                   sam_chunk_size, sam_hand_stride, smoothing_frames, hamer, hamer_stride):
+                   sam_chunk_size, sam_hand_stride, smoothing_frames, hamer, hamer_stride, linked_base=None):
     import torch
     from flowhmr.pipeline.v2m_inference import StageName
     from flowhmr.utils.runtime_capabilities import detection_request_key
@@ -298,6 +299,7 @@ def process_linked(engine, video, sub_dir, name, meta, shots, *, detection_range
     report['gauge']=gauge_reports
     generated=0
     hamer_segments = {}
+    replay = {}
     for a,b,run,tokens,obs,hands,guard,breaks in prepared:
         boundaries = [0,*breaks,b-a]
         for left,right in zip(boundaries,boundaries[1:]):
@@ -312,6 +314,8 @@ def process_linked(engine, video, sub_dir, name, meta, shots, *, detection_range
             # Use the native public camera convention conversion, exactly once.
             camera = _vggt_opencv_to_yup_rt(torch.from_numpy(condition).float())
             segment_hands = target/'hands.npy'
+            if linked_base is not None:
+                replay[first+a+left, first+a+right] = (tokens[left:right], camera, segment_hands)
             np.save(segment_hands,np.load(hands)[left:right])
             def generation_progress(stage,pct,message):
                 progress(stage,100*(generated+(right-left)*pct/100)/total_valid,message)
@@ -353,6 +357,29 @@ def process_linked(engine, video, sub_dir, name, meta, shots, *, detection_range
         combined_correction=aggregate_correction(report['ground'])
     motion, report['placements'] = _join_motion(parts,valid,first)
     if corrections and len(parts)>1:motion['ground_height_m']=np.float64(report['ground']['height_m'])
+    if linked_base is not None:
+        from .torso import compose_linked
+        save_npz(folder/'standard-before-torso.npz', **motion)
+        spans = [tuple(item['source_frames']) for item in report['intervals']]
+        with TemporaryDirectory(dir=folder, prefix='base-pass-') as staging, linked_base():
+            def generate_base(start, stop):
+                check()
+                segment_tokens, camera, hands_path = replay[start, stop]
+                target = Path(staging)/f'{start}_{stop}'
+                target.mkdir()
+                engine._generate_video_motion(segment_tokens.float().contiguous(), camera, str(target), name,
+                    working_video=str(video), start_frame=start, seed=seed, cfg_scale=cfg_scale,
+                    smoothing_frames=smoothing_frames, hamer=False, hamer_stride=1,
+                    hand_boxes_path=str(hands_path), progress=lambda *args: None,
+                    details=lambda values: None, cancel_check=check, reference_shapes=motion['betas'])
+                suffix = '' if engine.postprocess is not None else '_origin'
+                with np.load(target/f'{name}_seed{seed}{suffix}.npz', allow_pickle=False) as data:
+                    return dict(poses=data['poses'], trans=data['trans'],
+                                source_frames=np.arange(start, start+len(segment_tokens)))
+            motion, torso_report = compose_linked(motion, spans, generate_base, engine.smpl_model_path)
+            check()
+        report['torso_opt'] = torso_report
+        details(torso_opt=torso_report)
     check()
     suffix = '' if engine.postprocess is not None or hamer else '_origin'
     output = Path(sub_dir)/f'{name}_seed{seed}{suffix}'

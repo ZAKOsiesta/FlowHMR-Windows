@@ -205,11 +205,14 @@ def _encode(motion, reference_path, start_frame, floor):
     return header, data
 
 
-def export_vrma(npz_data, outname, *, reference_path, start_frame=0, floor=0.):
+def export_vrma(npz_data, outname, *, reference_path, start_frame=None, floor=0.):
     """Export one person, using the final corrected motion and source time offset."""
     if not isinstance(npz_data, Mapping):
         with np.load(npz_data, allow_pickle=False) as source:
-            npz_data = {key: source[key] for key in ("poses", "trans", "betas", "mocap_framerate") if key in source}
+            npz_data = {key: source[key] for key in ("poses", "trans", "betas", "mocap_framerate", "source_frames", "track_start") if key in source}
+    if start_frame is None:
+        from flowhmr.multishot.timeline import source_start
+        start_frame = source_start(npz_data)
     header, data = _encode(npz_data, reference_path, start_frame, floor)
     size = 28 + len(header) + len(data)
     if size >= 1 << 32:

@@ -1030,20 +1030,11 @@ def _assemble_scene(batch, *, automatic):
         traceback.print_exc()
 
 
-def run_torso_optimization(job_id, engine, params, sub_dir, result, standard_motion):
-    """Re-run generation with the optional base checkpoint, then compose torso motion.
-
-    The second pass reuses the cached detection, camera and SAM features of this
-    job, so it only repeats model loading, generation and the configured
-    postprocess. The base torso local rotations are kept, while the standard
-    result's world-space ankles and foot orientation are restored by leg IK.
-    """
+@contextmanager
+def torso_base_pipeline(engine, params):
     from flowhmr.pipeline.v2m_inference import StageName, build_pipeline, load_yaml
-    from flowhmr.utils.runtime_torso_optimization import compose_torso_optimization, save_composed_motion
 
     base_ckpt, base_cfg = flowhmr_base_paths()
-    base_suffix = "" if params["postprocess"] else "_origin"
-    base_result = os.path.join(sub_dir, f"{SUB}_seed{params['seed']}{base_suffix}")
     latest_report = getattr(engine.postprocess, "last_report", None) if engine.postprocess is not None else None
     latest_pipeline = engine.pipeline
     staged = getattr(engine, "_staged_models", None) or {}
@@ -1061,22 +1052,7 @@ def run_torso_optimization(job_id, engine, params, sub_dir, result, standard_mot
         if staged:
             staged[StageName.GENERATION] = (base_pipeline, None)
             engine._active_stage = None
-        engine.process_video(
-            input_video(job_id), job_dir(job_id), seed=params["seed"], cfg_scale=params["cfg_scale"],
-            max_frames=None if params["auto_frames"] else params["max_frames"],
-            start_frame=params["start_frame"], end_frame=params["end_frame"],
-            smoothing_frames=params["smoothing_frames"], hamer=False, hamer_stride=1,
-            vggt_frame_interval=params["vggt_interval"],
-            static_camera=params.get("static_camera", False),
-            sam_chunk_size=params.get("sam_chunk_size", DEFAULT_PARAMS["sam_chunk_size"]),
-            sam_hand_stride=params["sam_hand_stride"],
-            person_selector=None, progress_callback=None,
-            cancel_check=lambda: _raise_if_cancelled(job_id))
-        _raise_if_cancelled(job_id)
-        if not os.path.exists(base_result + ".npz"):
-            raise FileNotFoundError(f"torso base output missing: {base_result}.npz")
-        with np.load(base_result + ".npz", allow_pickle=True) as base_data:
-            base_motion = {key: np.array(base_data[key], copy=True) for key in base_data.files}
+        yield
     finally:
         engine.pipeline = latest_pipeline
         if latest_report is not None:
@@ -1095,6 +1071,29 @@ def run_torso_optimization(job_id, engine, params, sub_dir, result, standard_mot
             cuda = getattr(sys.modules.get("torch"), "cuda", None)
             if getattr(cuda, "is_initialized", lambda: False)():
                 cuda.empty_cache()
+
+
+def run_torso_optimization(job_id, engine, params, sub_dir, result, standard_motion):
+    from flowhmr.utils.runtime_torso_optimization import compose_torso_optimization, save_composed_motion
+    base_suffix = "" if params["postprocess"] else "_origin"
+    base_result = os.path.join(sub_dir, f"{SUB}_seed{params['seed']}{base_suffix}")
+    with torso_base_pipeline(engine, params):
+        engine.process_video(
+            input_video(job_id), job_dir(job_id), seed=params["seed"], cfg_scale=params["cfg_scale"],
+            max_frames=None if params["auto_frames"] else params["max_frames"],
+            start_frame=params["start_frame"], end_frame=params["end_frame"],
+            smoothing_frames=params["smoothing_frames"], hamer=False, hamer_stride=1,
+            vggt_frame_interval=params["vggt_interval"],
+            static_camera=params.get("static_camera", False),
+            sam_chunk_size=params.get("sam_chunk_size", DEFAULT_PARAMS["sam_chunk_size"]),
+            sam_hand_stride=params["sam_hand_stride"],
+            person_selector=None, progress_callback=None,
+            cancel_check=lambda: _raise_if_cancelled(job_id))
+        _raise_if_cancelled(job_id)
+        if not os.path.exists(base_result + ".npz"):
+            raise FileNotFoundError(f"torso base output missing: {base_result}.npz")
+        with np.load(base_result + ".npz", allow_pickle=True) as base_data:
+            base_motion = {key: np.array(base_data[key], copy=True) for key in base_data.files}
     composed, metrics = compose_torso_optimization(
         base_motion, standard_motion, engine.smpl_model_path, body_reference=engine.body_reference)
     save_composed_motion(composed, result, engine.smpl_model_path)
@@ -1204,6 +1203,15 @@ def run_job(job_id):
         engine.postprocess = get_postprocess(
             params["correction_floor_m"], params["correction_preset"], sole_fit_strength=params["sole_fit_strength"],
         )
+    linked_torso_done = False
+    @contextmanager
+    def linked_base():
+        nonlocal linked_torso_done
+        update_job(job_id, message="正在按原片有效区间优化躯干")
+        with torso_base_pipeline(engine, params):
+            yield
+        linked_torso_done = True
+
     sub_dir = engine.process_video(
         input_video(job_id), job_dir(job_id), seed=params["seed"], cfg_scale=params["cfg_scale"],
         max_frames=None if params["auto_frames"] else params["max_frames"],
@@ -1214,6 +1222,7 @@ def run_job(job_id):
         vggt_frame_interval=params["vggt_interval"],
         static_camera=params.get("static_camera", False),
         shot_linking=params.get('shot_linking', 'off'),
+        linked_base=linked_base if params.get('torso_opt') else None,
         sam_chunk_size=params.get("sam_chunk_size", DEFAULT_PARAMS["sam_chunk_size"]),
         sam_hand_stride=params["sam_hand_stride"],
         person_selector=select_person if params.get("manual_select", True) else None,
@@ -1227,7 +1236,7 @@ def run_job(job_id):
     if not os.path.exists(result + ".npz"):
         raise FileNotFoundError(f"generation output missing: {result}.npz")
 
-    if params.get("torso_opt"):
+    if params.get("torso_opt") and not linked_torso_done:
         _raise_if_cancelled(job_id)
         update_job(job_id, message="正在生成躯干优化动作（base 检查点）")
         correction_report = getattr(engine.postprocess, "last_report", None) if params["postprocess"] else None
@@ -2507,7 +2516,7 @@ def api_fbx(job_id):
                 revision += 1  # Separate from existing generic Mixamo FBX.
         prefix = f"fbx_{profile}_v{revision}_{signature or 'single'}"
     pose_tag = f"_{first_pose}_pose" if first_pose != "none" else ""
-    cache_name = f"{prefix}_{file_stamp(source)}_{suffix}{tag}{pose_tag}"
+    cache_name = f"{prefix}_source_time_{file_stamp(source)}_{suffix}{tag}{pose_tag}"
 
     def write(template_path=None, template_hash=""):
         name = cache_name if profile == "flowhmr" else (
@@ -2742,7 +2751,7 @@ def api_vmd(job_id):
     except ValueError:
         reference_path = None
     reference_stamp = file_stamp(reference_path) if reference_path is not None else "standard"
-    path = os.path.join(folder, f"vmd_v2_{file_stamp(source)}_{signature or 'single'}_{reference_stamp}.{extension}")
+    path = os.path.join(folder, f"vmd_v3_{file_stamp(source)}_{signature or 'single'}_{reference_stamp}.{extension}")
     try:
         with FBX_EXPORT_LOCK:
             if not os.path.isfile(path):
@@ -2752,7 +2761,7 @@ def api_vmd(job_id):
                 end = max(p["end"] for p in chosen) if chosen is not None else None
 
                 def write(motion, output, person):
-                    export_vmd(motion, output, start_frame=person["start"] if person else 0,
+                    export_vmd(motion, output, start_frame=person["start"] if person else None,
                                scene_end=end, reference_path=reference_path)
 
                 write_humanoid_motion(source, path, chosen, "vmd", write)
@@ -2792,7 +2801,7 @@ def api_vrma(job_id):
         stamp = (file_stamp(source), signature, floor,
                  [(number, str(model), file_stamp(model)) for number, model in references.items()])
         key = hashlib.sha256(json.dumps(stamp, separators=(",", ":")).encode()).hexdigest()[:24]
-        path = os.path.join(folder, f"vrma_v1_{key}.{extension}")
+        path = os.path.join(folder, f"vrma_v2_{key}.{extension}")
         with FBX_EXPORT_LOCK:
             if not os.path.isfile(path):
                 from flowhmr.core.export.vrma import export_vrma
@@ -2802,7 +2811,7 @@ def api_vrma(job_id):
                 def write(motion, output, person):
                     number = person["person"] if person else None
                     export_vrma(motion, output, reference_path=references[number],
-                                start_frame=person["start"] if person else 0, floor=floor)
+                                start_frame=person["start"] if person else None, floor=floor)
 
                 write_humanoid_motion(source, path, chosen, "vrma", write)
     except (OSError, ValueError, KeyError, TypeError, BadZipFile) as error:
@@ -2930,9 +2939,13 @@ def api_result(job_id, kind):
     if not os.path.exists(path):
         abort(404)
     if kind == 'meta':
-        from flowhmr.multishot.timeline import preview_shot_ids
+        from flowhmr.multishot.timeline import preview_shot_ids, preview_validity
         with open(path, encoding='utf-8') as stream:
             meta = json.load(stream)
+        if (job.get('shot_linking_report') or {}).get('mode') == 'linked':
+            valid = preview_validity(meta, Path(job_dir(job_id)) / 'motion.npz')
+            if valid is not None:
+                meta['valid_frames'] = valid
         shot_ids = preview_shot_ids(meta, job)
         if shot_ids is None:
             # Older accepted jobs can have a compact report without tracks.

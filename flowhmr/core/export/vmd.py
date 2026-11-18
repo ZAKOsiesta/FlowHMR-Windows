@@ -178,7 +178,7 @@ def export_vmd(npz_data, outname, *, start_frame=None, scene_end=None, reference
     """
     if not isinstance(npz_data, Mapping):
         with np.load(npz_data, allow_pickle=False) as data:
-            motion = {key: data[key] for key in ("poses", "trans", "mocap_framerate", "betas", "valid_frames", "track_start") if key in data}
+            motion = {key: data[key] for key in ("poses", "trans", "mocap_framerate", "betas", "valid_frames", "track_start", "source_frames") if key in data}
     else:
         motion = npz_data
     poses, trans = _motion_arrays(motion)
@@ -188,7 +188,9 @@ def export_vmd(npz_data, outname, *, start_frame=None, scene_end=None, reference
         valid_frames = validity(motion['valid_frames'], len(poses))
         held = held_indices(valid_frames)
         poses, trans = poses[held], trans[held]
-    start_frame = int(motion.get('track_start', 0)) if start_frame is None else start_frame
+    if start_frame is None:
+        from flowhmr.multishot.timeline import source_start
+        start_frame = source_start(motion)
     start = _frame(start_frame)
     end = _frame(start + len(poses) - 1)
     scene_end = end if scene_end is None else _frame(scene_end)

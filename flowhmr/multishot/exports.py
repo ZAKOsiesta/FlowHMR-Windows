@@ -79,7 +79,7 @@ def camera_bundle(directory, format_name, joints, transform=None):
         return stream
 
 
-def motion_report_bundle(path, source, filename, start=0):
+def motion_report_bundle(path, source, filename, start=None):
     """Only motions carrying actual gaps change their old download format."""
     with np.load(source, allow_pickle=False) as motion:
         if 'valid_frames' not in motion:

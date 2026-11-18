@@ -218,11 +218,13 @@ class SMPLH2FBX:
                            variant_path=None, *, first_pose="none", profile="flowhmr", template_path=None) -> bool:
         if isinstance(npz_data, (str, os.PathLike)):
             with np.load(npz_data, allow_pickle=False) as data:
-                npz_data = {k: data[k] for k in ("poses", "trans", "betas", "mocap_framerate") if k in data}
+                npz_data = {k: data[k] for k in ("poses", "trans", "betas", "mocap_framerate", "source_frames", "track_start") if k in data}
 
         fps = int(npz_data.get("mocap_framerate", fps))
-        end = np.asarray(npz_data["poses"]).size // (52 * 3) - 1
-        return self._write_motions([(None, 0, npz_data)], outname, fps, end, export_mesh, variant_path, first_pose,
+        from flowhmr.multishot.timeline import source_start
+        start = source_start(npz_data)
+        end = start + np.asarray(npz_data["poses"]).size // (52 * 3) - 1
+        return self._write_motions([(None, start, npz_data)], outname, fps, end, export_mesh, variant_path, first_pose,
                                    profile, template_path)
 
     def convert_scene_to_fbx(self, npz_path, people, outname, *, export_mesh=True, variant_path=None,

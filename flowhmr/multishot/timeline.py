@@ -25,6 +25,17 @@ def validity(values, frames):
     return values
 
 
+def preview_validity(meta, motion_path):
+    with np.load(motion_path, allow_pickle=False) as motion:
+        if 'valid_frames' not in motion:
+            return None
+        mask = validity(motion['valid_frames'], meta['num_frames'])
+        if 'source_frames' in motion and not np.array_equal(
+                motion['source_frames'], np.arange(meta['track_start'], meta['track_start']+len(mask))):
+            raise ValueError('Motion and preview source timeline differ')
+        return mask.tolist()
+
+
 def intervals(mask):
     edges = np.diff(np.r_[False, np.asarray(mask, dtype=bool), False].astype(np.int8))
     return list(zip(np.flatnonzero(edges == 1).tolist(), np.flatnonzero(edges == -1).tolist()))
@@ -53,7 +64,19 @@ def display_keys(mask, start=0, scene_end=None):
     return dict(sorted(keys.items()))
 
 
-def gap_report(motion, start=0):
+def source_start(motion):
+    if 'source_frames' not in motion:
+        return int(motion.get('track_start', 0))
+    source = np.asarray(motion['source_frames'])
+    if (source.shape != (len(motion['trans']),) or not len(source) or source.dtype.kind not in 'iu'
+            or source[0] < 0 or not np.all(np.diff(source) == 1)):
+        raise ValueError('Invalid source frame range for motion export')
+    return int(source[0])
+
+
+def gap_report(motion, start=None):
+    if start is None:
+        start = source_start(motion)
     mask = validity(motion.get('valid_frames'), len(motion['trans']))
     return {'fps': 30, 'track_start': int(start), 'interval_convention': 'half_open_source_frames',
             'gaps': [[a + start, b + start] for a, b in intervals(~mask)],

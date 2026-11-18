@@ -1,5 +1,5 @@
 """Review regressions at the real orchestration boundary; model calls are fixtures."""
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 import copy
 import json
 from pathlib import Path
@@ -37,7 +37,7 @@ def motion(n, angle=0., x=0.):
 
 
 class LinkedReviewTests(unittest.TestCase):
-    def run_linked(self, valid, points=None, *, cut=30, hamer=False):
+    def run_linked(self, valid, points=None, *, cut=30, hamer=False, cancel_base=False):
         n = len(valid)
         points = observed_body(n) if points is None else points
         boxes = np.tile([0., 0., 100., 100.], (n, 1)).astype(np.float32)
@@ -72,17 +72,36 @@ class LinkedReviewTests(unittest.TestCase):
             stack.enter_context(patch.object(linked, '_cameras', return_value=(np.tile(np.eye(4), (n, 1, 1)), K)))
             stack.enter_context(patch.object(linked, '_features', side_effect=features))
             stack.enter_context(patch.dict(sys.modules, {'flowhmr.core.export.smplh2fbx': None}))
-            linked.process_linked(engine, 'source.mp4', root, 'fixture',
+            @contextmanager
+            def cancelled_pass():
+                raise InterruptedError('Cancelled during torso optimization')
+                yield
+
+            def run():
+                return linked.process_linked(engine, 'source.mp4', root, 'fixture',
                 SimpleNamespace(height=100, width=100, total_frames=n), shots,
                 detection_range=(0,n-1), person_selector=None, progress=lambda *x:None,
                 details=details, check=lambda:None, seed=0, cfg_scale=1., static_camera=True,
                 vggt_interval=0, sam_chunk_size=24, sam_hand_stride=1, smoothing_frames=0.,
-                hamer=hamer, hamer_stride=1)
+                hamer=hamer, hamer_stride=1, linked_base=cancelled_pass if cancel_base else None)
+            if cancel_base:
+                with self.assertRaises(InterruptedError):
+                    run()
+                with np.load(root/'linked/standard-before-torso.npz') as standard:
+                    np.testing.assert_array_equal(standard['valid_frames'], valid)
+                self.assertFalse((root/'fixture_seed0_origin.npz').exists())
+                self.assertFalse((root/'linked/camera_inputs.json').exists())
+                self.assertFalse(list((root/'linked').glob('base-pass-*')))
+                return
+            run()
             suffix = '' if hamer else '_origin'
             with np.load(root/f'fixture_seed0{suffix}.npz') as z:
                 output = dict(z)
             saved = json.loads((root/'linked/report.json').read_text('utf8'))
         return generated, state, output, saved
+
+    def test_cancelled_torso_pass_keeps_standard_and_publishes_no_result(self):
+        self.run_linked(np.ones(60, bool), cancel_base=True)
 
     def test_offscreen_upper_body_cannot_split_a_continuous_run(self):
         p = observed_body(60)

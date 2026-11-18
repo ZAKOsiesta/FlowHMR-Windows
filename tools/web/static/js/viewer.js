@@ -753,7 +753,7 @@ export function initViewer(preview) {
   const savedFps = localStorage.getItem(fpsKey);
   if ([...fpsSelect.options].some((option) => option.value === savedFps)) fpsSelect.value = savedFps;
   const displayRate = () => Number(fpsSelect.value) || state.meta?.fps || 30;
-  const displayOffset = () => state.scene ? sourceStart(state.meta) : 0;
+  const displayOffset = () => state.scene || state.meta?.valid_frames ? sourceStart(state.meta) : 0;
   const frameNumber = (f) => Math.floor((displayOffset() + f) * displayRate() / state.meta.fps + 1e-8) + 1;
   const displayEnd = () => Math.max(frameNumber(state.meta.num_frames - 1),
     Math.round((displayOffset() + state.meta.num_frames) * displayRate() / state.meta.fps));
@@ -1160,7 +1160,7 @@ export function initViewer(preview) {
       } else if (command.action === 'pause') setPlaying(false);
       else return { error: 'Unknown playback action.' };
       return { job_id: state.jobId, action: command.action, frame: state.frame,
-        display_frame: (state.scene ? sourceStart(state.meta) : 0) + state.frame + 1,
+        display_frame: displayOffset() + state.frame + 1,
         source_frame: sourceStart(state.meta) + state.frame, frame_count: state.meta.num_frames,
         fps: state.meta.fps, playing: state.playing };
     },
@@ -1168,7 +1168,7 @@ export function initViewer(preview) {
       if (!state.meta || state.frame < 0) return { available: false, reason: 'no_motion_loaded' };
       return {
         available: true, job_id: state.jobId, frame: state.frame,
-        display_frame: (state.scene ? sourceStart(state.meta) : 0) + state.frame + 1,
+        display_frame: displayOffset() + state.frame + 1,
         source_frame: sourceStart(state.meta) + state.frame,
         fps: state.meta.fps, playing: state.playing, frame_count: state.meta.num_frames,
         actors: actors.map((actor) => {

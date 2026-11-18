@@ -41,6 +41,19 @@ def read_vmd(path):
 
 
 class VmdExportTests(unittest.TestCase):
+    def test_nonzero_linked_source_keeps_visibility_on_camera_frames(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'motion.vmd'
+            export_vmd(dict(poses=np.zeros((4,52,3)), trans=np.zeros((4,3)),
+                            valid_frames=np.array([True,False,False,True]),
+                            source_frames=np.arange(71,75)), path)
+            tracks, display = read_vmd(path)
+        self.assertIn(71, tracks["センター"])
+        self.assertIn(74, tracks["センター"])
+        events = {frame: visible for frame, visible, _ in display}
+        self.assertFalse(events[72])
+        self.assertTrue(events[74])
+
     def test_writes_scene_coordinates_body_and_hand_keys_on_shared_timeline(self):
         poses = np.zeros((2, 52, 3))
         poses[0, 0, 1] = math.pi / 2

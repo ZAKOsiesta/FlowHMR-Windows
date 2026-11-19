@@ -210,6 +210,7 @@ export default Object.freeze({
   "update.legacy_hint": "이 버전을 다운로드하고 압축을 풀어 실행하세요.",
   "update.local_version": "v{version}(로컬)",
   "update.legacy_available": "버전 기록에서 v{version} ZIP을 다운로드할 수 있습니다.",
+  "update.wrong_edition": "다른 에디션의 ZIP입니다. Ryki 릴리스 페이지에서 Windows ZIP을 선택하세요. Xiaoer 에디션은 별도 폴더에 설치하세요.",
   "update.invalid_zip": "완전한 FlowHMR Windows 업데이트 ZIP을 선택하세요.",
   "update.legacy_zip": "이전 릴리스 ZIP입니다. 압축을 풀어 해당 버전을 실행하세요.",
   "update.same_version": "설치된 버전과 같은 ZIP입니다.",

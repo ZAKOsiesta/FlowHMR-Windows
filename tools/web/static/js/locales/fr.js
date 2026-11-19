@@ -210,6 +210,7 @@ export default Object.freeze({
   "update.legacy_hint": "Téléchargez et décompressez le ZIP pour lancer cette version.",
   "update.local_version": "v{version} (locale)",
   "update.legacy_available": "Le ZIP de la v{version} est disponible dans l’historique des versions.",
+  "update.wrong_edition": "Ce ZIP appartient à une autre édition. Sélectionnez un ZIP Windows sur la page des versions Ryki. Installez l’édition Xiaoer dans un dossier distinct.",
   "update.invalid_zip": "Choisissez un ZIP complet de mise à jour de FlowHMR pour Windows.",
   "update.legacy_zip": "Ce ZIP correspond à une ancienne version. Décompressez-le pour la lancer.",
   "update.same_version": "La version du ZIP est identique à la version installée.",

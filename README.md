@@ -1,4 +1,4 @@
-# FlowHMR-Windows
+# FlowHMR Windows · Ryki 版 0.1.0
 
 **简体中文** · [繁體中文](docs/readme/zh-TW.md) · [English](docs/readme/en.md) · [日本語](docs/readme/ja.md) · [한국어](docs/readme/ko.md) · [Русский](docs/readme/ru.md) · [Français](docs/readme/fr.md)
 
@@ -6,9 +6,13 @@
 
 剪辑视频支持单人跨镜头连接、按需恢复原片相机，以及动作和相机配套导出；界面和 MCP 的使用方法见 [使用指南](docs/multishot.md)、[MCP 说明](docs/mcp.md)。这些功能已在 Windows / NVIDIA CUDA 上验证，CPU、ROCm 和 Intel XPU 路径尚未验证；依赖、已知限制和检查范围见 [验证说明](docs/product-validation.md)。发行包包含哪些功能，以对应版本的发布说明为准。
 
-**[下载 Windows 便携版](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest/download/FlowHMR-Windows.zip)** · [查看发布说明](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest) · [FlowHMR 论文](https://arxiv.org/abs/2610.03691)
+**[下载 Windows 便携版](https://github.com/ZAKOsiesta/FlowHMR-Windows/releases/latest/download/FlowHMR-Ryki-Windows.zip)** · [查看发布说明](https://github.com/ZAKOsiesta/FlowHMR-Windows/releases/latest) · [FlowHMR 论文](https://arxiv.org/abs/2610.03691)
 
-## v0.3.6 更新
+## Ryki 版 0.1.0
+
+Ryki 版独立编号，支持跨镜头连接与躯干优化组合使用。首次使用请解压到新目录。应用内更新从 Ryki 仓库获取，本地导入会核对发行标识。
+
+## 继承自小二版 0.3.6 的功能
 
 - **自定义重定向与预设。** 在可拖动、可缩放的浮动面板里拾取 3D 骨骼。引导会从身体走到双手，默认开启自动镜像；重定向按目标身高和四肢长度调整。角色与预设均可保存，角色库和预设用缩略图浏览。
 - **按当前角色导出。** Mixamo 和 MetaHuman 不再要求在导出时重新选择模板文件。按角色导出会保留已保存的重定向和校正；Mixamo 仍可选通用骨架。兼容 PMX 支持 IK / FK，自动重心优先用「センター」，否则尝试「全ての親」。普通自定义 FBX 应用重定向后，可选「当前角色 FBX」，按原骨架导出并选择是否包含蒙皮。当前角色 FBX 每次导出一人，保留多人场景中的站位与入场时间。VRM 保留 GLB 和 VRMA 导出。
@@ -66,7 +70,7 @@
 
 ## 快速开始
 
-1. 在 64 位 Windows 10 / 11 上完整解压 `FlowHMR-Windows.zip`，进入解包后的 `FlowHMR` 文件夹，双击 `FlowHMR.exe`。基础包自带 Python、界面组件和 FBX 导出组件。
+1. 在 64 位 Windows 10 / 11 上完整解压 `FlowHMR-Ryki-Windows.zip`，进入解包后的 `FlowHMR` 文件夹，双击 `FlowHMR.exe`。基础包自带 Python、界面组件和 FBX 导出组件。
 2. 点右上角 **运行环境**，按上表下载并启用匹配的 CUDA、ROCm 或 Intel XPU 环境；也可选择 **CPU**。使用 GPU 时先安装兼容的显卡驱动。已经安装的 CUDA 12.6 / 12.9 环境可以继续使用。
 3. 打开 **模型**，点 **下载全部公开模型**，也可以逐项下载。公开模型会校验后放到 `models/`；SAM 3D Body 和 VGGT-Omega 由魔搭提供。不需要手指精修时，可以跳过 HaMeR。需要登录的官方模型按下表取得。
 4. 把视频拖进软件，选择要处理的人物和帧范围，再开始生成。完成后可先预览，再从菜单导出 FBX、VMD、VRMA 或 NPZ。
@@ -90,7 +94,7 @@
 
 ## 帮助与项目来源
 
-- [Windows 使用、升级和源码构建说明](docs/windows.md) · [报告问题](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/issues/new)
+- [Windows 使用、升级和源码构建说明](docs/windows.md) · [报告问题](https://github.com/ZAKOsiesta/FlowHMR-Windows/issues/new)
 - [维护界面语言](docs/localization.md)
 - [MCP 服务使用说明](docs/mcp.md)
 - [FlowHMR 官方项目页](https://flowhmr.github.io/) · [上游推理与训练资料](https://github.com/flowhmr/flowhmr#readme) · [上游论文引用格式](https://github.com/flowhmr/flowhmr#citation)

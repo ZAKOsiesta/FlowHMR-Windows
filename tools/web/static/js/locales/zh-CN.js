@@ -210,6 +210,7 @@ export default Object.freeze({
   "update.legacy_hint": "此版本请下载后解压运行。",
   "update.local_version": "v{version}（本机）",
   "update.legacy_available": "发现 v{version}。可在历史版本中下载 ZIP。",
+  "update.wrong_edition": "这个 ZIP 不属于 Ryki 版。请选择 Ryki 发布页提供的 Windows ZIP。小二版请解压到单独的目录。",
   "update.invalid_zip": "请选择完整的 FlowHMR Windows 更新 ZIP。",
   "update.legacy_zip": "此 ZIP 是旧版发布包，可解压后运行。",
   "update.same_version": "该 ZIP 与当前程序的版本相同。",

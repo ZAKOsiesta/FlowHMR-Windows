@@ -16,12 +16,12 @@ import zipfile
 if __package__:
     from .adapt_sam import adapt_sam
     from .desktop_runtime_build import adapt_winforms, stage_dotnet_runtime
-    from .desktop_update import PACKAGE, UPDATE_INFO, VERSION_FILE, read_version, release_version
+    from .desktop_update import EDITION, PACKAGE, UPDATE_INFO, VERSION_FILE, read_version, release_version
     from .install_fbx import WHEEL_NAME as FBX_WHEEL_NAME, binding_from_wheel
 else:
     from adapt_sam import adapt_sam
     from desktop_runtime_build import adapt_winforms, stage_dotnet_runtime
-    from desktop_update import PACKAGE, UPDATE_INFO, VERSION_FILE, read_version, release_version
+    from desktop_update import EDITION, PACKAGE, UPDATE_INFO, VERSION_FILE, read_version, release_version
     from install_fbx import WHEEL_NAME as FBX_WHEEL_NAME, binding_from_wheel
 
 
@@ -180,7 +180,7 @@ def stage_release(destination, prerequisites, dinov3_source, *, bundle_cuda=Fals
     destination.mkdir(parents=True, exist_ok=False)
     # Tests belong in the source archive, not in the runnable/update payload.
     # Existing launchers intentionally reject updates outside program paths.
-    copy_files(ROOT, destination, (path for path in files if path.parts[0] != 'tests'))
+    copy_files(ROOT, destination, (path for path in files if path.parts[0] not in {'tests', '.github'}))
     for name in SUBMODULES:
         source = ROOT / "third_party" / name
         expected = git("rev-parse", f"HEAD:third_party/{name}").strip()
@@ -238,7 +238,7 @@ def pack_release(stage, output, ffmpeg_source):
     bundle_cuda = (stage / "runtime/Lib/site-packages/torch/lib/torch_cuda.dll").is_file()
     with tempfile.TemporaryDirectory(prefix="windows-package-", dir=output.parent) as temporary:
         work = Path(temporary)
-        archive = work / ((PAYLOAD if bundle_cuda else "FlowHMR-Windows") + ".zip")
+        archive = work / (PAYLOAD + ".zip" if bundle_cuda else PACKAGE)
         seven_zip = shutil.which("7z") or Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "7-Zip/7z.exe"
         if bundle_cuda and Path(seven_zip).is_file():
             subprocess.run((str(seven_zip), "a", "-tzip", "-mm=Deflate", "-mx=3", "-mmt=on", "-bso0",
@@ -280,7 +280,7 @@ def pack_release(stage, output, ffmpeg_source):
     shutil.copy2(ROOT / "docs/release-windows.md", output / "README-Windows.md")
     shutil.copy2(ffmpeg_source, output / FFMPEG_SOURCE_NAME)
     if not bundle_cuda and (build_version := read_version(stage)) is not None:
-        (output / UPDATE_INFO).write_text(json.dumps({"version": build_version, "package": PACKAGE,
+        (output / UPDATE_INFO).write_text(json.dumps({"edition": EDITION, "version": build_version, "package": PACKAGE,
                                                       "sha256": checksum(output / PACKAGE)}, indent=2) + "\n",
                                           encoding="utf-8")
     (output / "SHA256SUMS.txt").write_text(

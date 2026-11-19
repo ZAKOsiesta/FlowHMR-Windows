@@ -42,14 +42,22 @@ internal static class UpdateScenario {
             string root = args[0], mode = args[1];
             string work = Path.Combine(root, ".cache/program-update");
             Write(root, "FlowHMR-Version.txt", "0.3.6");
+            Write(root, "FlowHMR-Edition.txt", "ZAKOsiesta/FlowHMR-Windows/ryki");
             Write(root, "third_party/original.txt", "old dependency");
             Write(root, "tools/original.txt", "old code");
             Write(root, "models/keep.txt", "user model");
             Write(work, "ready/files/FlowHMR-Version.txt", "9.9.903");
+            Write(work, "ready/files/FlowHMR-Edition.txt", "ZAKOsiesta/FlowHMR-Windows/ryki");
             Write(work, "ready/files/third_party/new.txt", "new dependency");
             Write(work, "ready/files/tools/new.txt", "new code");
-            Write(work, "ready/targets.txt", "tools\nthird_party\nFlowHMR-Version.txt\n");
+            Write(work, "ready/targets.txt", "tools\nthird_party\nFlowHMR-Edition.txt\nFlowHMR-Version.txt\n");
             var update = new DesktopUpdate(root);
+            if (mode == "foreign") {
+                File.Delete(Path.Combine(work, "ready/files/FlowHMR-Edition.txt"));
+                Expect(!update.Prepare(), "Foreign edition was accepted");
+                Expect(File.ReadAllText(Path.Combine(root, "FlowHMR-Version.txt")) == "0.3.6", "Installation was modified");
+                return 0;
+            }
             if (mode == "apply-lock")
                 WithTransientLock(Path.Combine(work, "ready/files/third_party/new.txt"),
                     () => Expect(update.Prepare(), "Temporary lock cancelled the update"));
@@ -112,6 +120,9 @@ class DesktopTransactionTest(TestCase):
 
     def test_upgrade_and_manual_rollback(self):
         self.run_scenario('roundtrip')
+
+    def test_launcher_refuses_a_staged_foreign_edition(self):
+        self.run_scenario('foreign')
 
     def test_temporary_lock_during_upgrade(self):
         self.run_scenario('apply-lock')

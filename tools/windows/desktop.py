@@ -21,12 +21,13 @@ import webview
 
 
 ROOT = Path(__file__).resolve().parents[2]
-TITLE = "FlowHMR"
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from desktop_downloads import configure_downloads
 from desktop_messages import MESSAGES, model_archive_filter, read_language, save_language
-from desktop_update import DesktopUpdate
+from desktop_update import DesktopUpdate, read_version
+
+TITLE = "FlowHMR · Ryki 版 " + (read_version(ROOT) or "").strip()
 
 
 class _JobBasicLimits(ctypes.Structure):

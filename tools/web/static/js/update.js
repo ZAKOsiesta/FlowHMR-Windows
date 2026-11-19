@@ -73,7 +73,7 @@ export function initUpdates() {
     show(stop, active);
     show(download, state.downloadable && !!target && RETRY.has(status));
     setText(download, m(status === "cancelled" && !state.message ? "download.resume" : "download.download"));
-    setText($("updateVersion"), m("update.installed", { version }));
+    setText($("updateVersion"), m("update.installed", { version: `Ryki 版 ${version}` }));
     const key = state.message ? `update.${state.message}` : STATUS[status] ?? `update.${status}`;
     setText($("updateStatus"), m(key, { version: target, size: Math.round(total / 1e6) }));
     show("updateNotes", !!target && (state.notes != null || AVAILABLE.has(status)));

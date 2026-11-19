@@ -9,8 +9,8 @@ using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-[assembly: AssemblyTitle("FlowHMR")]
-[assembly: AssemblyProduct("FlowHMR")]
+[assembly: AssemblyTitle("FlowHMR · Ryki 版")]
+[assembly: AssemblyProduct("FlowHMR · Ryki 版")]
 
 internal static class FlowHMRLauncher
 {
@@ -128,7 +128,7 @@ internal static class FlowHMRLauncher
             catch (AbandonedMutexException) { acquired = true; }
             if (!acquired)
             {
-                IntPtr window = FindWindow(null, "FlowHMR");
+                IntPtr window = FindWindow(null, "FlowHMR · Ryki 版 " + DesktopUpdate.ReadVersion(root));
                 if (window != IntPtr.Zero) { ShowWindow(window, 9); SetForegroundWindow(window); }
                 return 0;
             }

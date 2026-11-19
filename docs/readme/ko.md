@@ -1,10 +1,10 @@
-# FlowHMR-Windows
+# FlowHMR Windows · Ryki Edition 0.1.0
 
 [简体中文](../../README.md) · [繁體中文](zh-TW.md) · [English](en.md) · [日本語](ja.md) · **한국어** · [Русский](ru.md) · [Français](fr.md)
 
 **FlowHMR-Windows**는 내 컴퓨터에서 동영상으로 모션을 캡처하는 앱입니다. 동영상을 가져와 한 명 이상의 인물을 선택하면 3D 동작을 재구성해 원본과 동기화된 미리보기로 확인하고 내보낼 수 있습니다. 동작 재구성에는 업스트림 [FlowHMR](https://github.com/flowhmr/flowhmr) 모델을 사용합니다. 이 저장소는 Windows 포터블 버전, 모델과 런타임 관리, 인물 선택부터 내보내기까지의 데스크톱 작업 흐름을 독립적으로 유지합니다.
 
-**[Windows 포터블 버전 다운로드](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest/download/FlowHMR-Windows.zip)** · [릴리스 노트](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest) · [FlowHMR 논문](https://arxiv.org/abs/2610.03691)
+**[Windows 포터블 버전 다운로드](https://github.com/ZAKOsiesta/FlowHMR-Windows/releases/latest/download/FlowHMR-Ryki-Windows.zip)** · [릴리스 노트](https://github.com/ZAKOsiesta/FlowHMR-Windows/releases/latest) · [FlowHMR 논문](https://arxiv.org/abs/2610.03691)
 
 ## v0.3.6 변경 사항
 
@@ -64,7 +64,7 @@ CPU 전용 모드와 Intel XPU는 아직 HaMeR 손가락 보정을 지원하지 
 
 ## 빠른 시작
 
-1. 64비트 Windows 10 또는 11에서 `FlowHMR-Windows.zip` 전체를 압축 해제합니다. 압축을 푼 `FlowHMR` 폴더를 열고 `FlowHMR.exe`를 실행합니다. 기본 패키지에는 Python, 데스크톱 UI 및 FBX 내보내기 구성 요소가 포함됩니다.
+1. 64비트 Windows 10 또는 11에서 `FlowHMR-Ryki-Windows.zip` 전체를 압축 해제합니다. 압축을 푼 `FlowHMR` 폴더를 열고 `FlowHMR.exe`를 실행합니다. 기본 패키지에는 Python, 데스크톱 UI 및 FBX 내보내기 구성 요소가 포함됩니다.
 2. 오른쪽 위의 **런타임**을 열고 위 표를 참고해 장치에 맞는 환경을 다운로드하고 활성화합니다. GPU를 사용하려면 호환 드라이버를 설치하세요. **CPU**를 선택할 경우 별도 GPU 드라이버는 필요하지 않습니다.
 3. **모델**을 열어 **공개 모델 모두 다운로드**(下载全部公开模型)를 선택하거나 하나씩 다운로드합니다. 공개 모델은 검증 후 `models/`에 배치되며 SAM 3D Body와 VGGT-Omega는 ModelScope에서 받습니다. 손가락 보정이 필요 없다면 개별 다운로드에서 HaMeR를 건너뛸 수 있습니다. 로그인이 필요한 공식 모델은 아래 표를 참고하세요.
 4. 앱에 동영상을 끌어 놓고 인물과 프레임 범위를 선택해 생성을 시작합니다. 생성된 모션을 미리 본 뒤 메뉴에서 FBX, VMD, VRMA 또는 NPZ로 내보낼 수 있습니다.
@@ -88,7 +88,7 @@ CPU 전용 모드와 Intel XPU는 아직 HaMeR 손가락 보정을 지원하지 
 
 ## 도움말 및 프로젝트 출처
 
-- [Windows 사용, 업그레이드 및 소스 빌드](../../docs/windows.md) · [문제 신고](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/issues/new)
+- [Windows 사용, 업그레이드 및 소스 빌드](../../docs/windows.md) · [문제 신고](https://github.com/ZAKOsiesta/FlowHMR-Windows/issues/new)
 - [UI 번역 유지 관리](../../docs/localization.md)
 - [FlowHMR 공식 프로젝트 페이지](https://flowhmr.github.io/) · [업스트림 추론 및 학습 문서](https://github.com/flowhmr/flowhmr#readme) · [업스트림 인용 형식](https://github.com/flowhmr/flowhmr#citation)
 

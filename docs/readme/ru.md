@@ -1,10 +1,10 @@
-# FlowHMR-Windows
+# FlowHMR Windows · Ryki Edition 0.1.0
 
 [简体中文](../../README.md) · [繁體中文](zh-TW.md) · [English](en.md) · [日本語](ja.md) · [한국어](ko.md) · **Русский** · [Français](fr.md)
 
 **FlowHMR-Windows** — приложение для захвата движения из видео на вашем компьютере. Импортируйте видео, выберите одного или нескольких людей и восстановите их движения в 3D для синхронного просмотра и экспорта. Для реконструкции используется модель исходного проекта [FlowHMR](https://github.com/flowhmr/flowhmr). В этом независимом репозитории поддерживаются портативная версия для Windows, управление моделями и средами выполнения, а также рабочий процесс от выбора людей до экспорта.
 
-**[Скачать портативную версию для Windows](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest/download/FlowHMR-Windows.zip)** · [Примечания к выпуску](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest) · [Статья FlowHMR](https://arxiv.org/abs/2610.03691)
+**[Скачать портативную версию для Windows](https://github.com/ZAKOsiesta/FlowHMR-Windows/releases/latest/download/FlowHMR-Ryki-Windows.zip)** · [Примечания к выпуску](https://github.com/ZAKOsiesta/FlowHMR-Windows/releases/latest) · [Статья FlowHMR](https://arxiv.org/abs/2610.03691)
 
 ## Что нового в v0.3.6
 
@@ -64,7 +64,7 @@
 
 ## Быстрый старт
 
-1. В 64-разрядной Windows 10 или 11 полностью распакуйте `FlowHMR-Windows.zip`. Откройте папку `FlowHMR` и запустите `FlowHMR.exe`. В базовый пакет входят Python, интерфейс и компонент экспорта FBX.
+1. В 64-разрядной Windows 10 или 11 полностью распакуйте `FlowHMR-Ryki-Windows.zip`. Откройте папку `FlowHMR` и запустите `FlowHMR.exe`. В базовый пакет входят Python, интерфейс и компонент экспорта FBX.
 2. Нажмите **«Среда»** в правом верхнем углу, скачайте и включите среду для вашего устройства по таблице выше. При необходимости обновите графический драйвер. Для режима CPU графический драйвер не нужен.
 3. Откройте **Модели** и выберите **Скачать все общедоступные модели** (下载全部公开模型) или загрузите модели по отдельности. Файлы проверяются и помещаются в `models/`. SAM 3D Body и VGGT-Omega загружаются с ModelScope. При загрузке по отдельности можно пропустить HaMeR, если уточнение пальцев не нужно. Официальные модели, для загрузки которых требуется вход, приведены ниже.
 4. Перетащите видео в приложение, выберите людей и диапазон кадров, затем запустите генерацию. Результат можно просмотреть и экспортировать в FBX, VMD, VRMA или NPZ через меню.
@@ -88,7 +88,7 @@
 
 ## Справка и происхождение проекта
 
-- [Использование, обновление и сборка под Windows](../../docs/windows.md) · [Сообщить о проблеме](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/issues/new)
+- [Использование, обновление и сборка под Windows](../../docs/windows.md) · [Сообщить о проблеме](https://github.com/ZAKOsiesta/FlowHMR-Windows/issues/new)
 - [Поддержка переводов интерфейса](../../docs/localization.md)
 - [Официальная страница FlowHMR](https://flowhmr.github.io/) · [Документация исходного проекта по инференсу и обучению](https://github.com/flowhmr/flowhmr#readme) · [Формат цитирования](https://github.com/flowhmr/flowhmr#citation)
 

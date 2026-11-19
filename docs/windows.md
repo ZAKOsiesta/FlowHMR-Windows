@@ -4,7 +4,7 @@
 
 适用于 64 位 Windows 10 / 11，见 [最低配置与支持设备](../README.md#最低配置与支持设备)。基础包带 Python 3.10 和界面依赖，可以直接打开软件。生成前请选择并启用推理环境：NVIDIA 使用 CUDA，Windows 11 上的 AMD Radeon 使用 [ROCm](amd-rocm.md)，兼容的 Intel Arc 可试用 Intel XPU；Intel 和 AMD x64 处理器也可选实验性的纯 CPU 推理。
 
-1. 下载 [FlowHMR-Windows.zip](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest/download/FlowHMR-Windows.zip)，完整解压到一个有写入权限的目录。
+1. 下载 [FlowHMR-Ryki-Windows.zip](https://github.com/ZAKOsiesta/FlowHMR-Windows/releases/latest/download/FlowHMR-Ryki-Windows.zip)，首次使用 Ryki 版时，完整解压到一个独立且有写入权限的目录。
 2. 在解包后的 `FlowHMR` 文件夹里双击 `FlowHMR.exe`。程序使用独立窗口，不需要用浏览器。缺少 WebView2 或 VC++ 运行库时，程序会运行包里的微软安装程序。
 3. 右上角 **运行环境** 会按设备推荐：RTX 50 系列使用 CUDA 12.8；RTX 20／30／40 系列使用 CUDA 12.1。GTX 10 系列可用 CUDA 12.1 试跑短片，实际表现取决于显存和驱动。已装的 12.6／12.9 仍可保留。AMD 用户按 [ROCm 说明](amd-rocm.md)配置。软件内下载支持续传，安装会校验文件及实际算子。运行环境分别存入 `runtime/environments`，启用时重启推理服务。
 4. 点击右上角 **模型** → **下载全部公开模型**，或逐行选择要下载的模型。登录 [MANO 官网下载页](https://mano.is.tue.mpg.de/download.php) 取得 **Models & Code**（`mano_v1_2.zip`，男／女体型及 MANO）或 **Extended SMPL+H model**（`smplh.tar.xz`，中性体型）。基础动捕有其中一种官方体型即可。点 **导入模型压缩包…** 直接选择下载的文件，程序会自动解压、识别并显示结果；也可选择已解压的文件夹。详见 [模型目录说明](../models/README.md)。开始生成时才会加载推理模型。
@@ -63,6 +63,6 @@ curl.exe --fail --location https://codeload.github.com/FFmpeg/FFmpeg/tar.gz/946f
 .\.venv\Scripts\python.exe -B tools\windows\package_release.py pack .cache\release-stage dist\FlowHMR-Windows --ffmpeg-source .cache\FFmpeg-9.0.2-Source.tar.gz
 ```
 
-暂存和输出目录必须尚不存在。打包会生成 `FlowHMR-Windows.zip`、校验文件、源码和相对当前 Git 提交的补丁。需要制作预装 cu128 的离线包时，可给 `stage` 加 `--bundle-cuda`；超出单附件大小的离线包才会分卷。
+暂存和输出目录必须尚不存在。打包会生成 `FlowHMR-Ryki-Windows.zip`、校验文件、源码和相对当前 Git 提交的补丁。需要制作预装 cu128 的离线包时，可给 `stage` 加 `--bundle-cuda`；超出单附件大小的离线包才会分卷。
 
-将 `X.Y.Z` 换成即将发布的版本号，发布标签使用 `windows-vX.Y.Z`。将生成的 `FlowHMR-Windows.zip` 和 `FlowHMR-Windows-Update.json` 一起作为发布附件上传，历史版本列表会据此显示应用内安装入口。下载校验使用 GitHub 提供的 SHA-256。首次从未含更新器的版本升级，以及启动器本身升级时，请完整解压发布包。
+将 `X.Y.Z` 换成即将发布的版本号，发布标签使用 `ryki-vX.Y.Z`。将生成的 `FlowHMR-Ryki-Windows.zip` 和 `FlowHMR-Ryki-Windows-Update.json` 一起作为发布附件上传，历史版本列表会据此显示应用内安装入口。下载校验使用 GitHub 提供的 SHA-256。首次从未含更新器的版本升级，以及启动器本身升级时，请完整解压发布包。

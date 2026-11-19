@@ -10,13 +10,15 @@ using System.Threading;
 internal sealed class DesktopUpdate
 {
     private const string VersionFile = "FlowHMR-Version.txt";
+    private const string EditionFile = "FlowHMR-Edition.txt";
+    private const string Edition = "ZAKOsiesta/FlowHMR-Windows/ryki";
     private static readonly Regex VersionPattern = new Regex(@"\A(?:0|[1-9][0-9]{0,8})(?:\.(?:0|[1-9][0-9]{0,8})){2}\z");
     private static readonly Regex ReservedName = new Regex(@"\A(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])(?:\.|\z)", RegexOptions.IgnoreCase);
     private static readonly HashSet<string> CodeDirectories = new HashSet<string> { "flowhmr", "tools", "third_party" };
     private static readonly HashSet<string> SharedDirectories = new HashSet<string> { "assets", "configs", "data", "docs" };
     private static readonly HashSet<string> RootFiles = new HashSet<string>
     {
-        VersionFile, ".gitignore", ".gitmodules", "app.py", "check-install.cmd", "download-models.cmd",
+        VersionFile, EditionFile, ".gitignore", ".gitmodules", "app.py", "check-install.cmd", "download-models.cmd",
         "LICENSE", "README.md", "requirements-phc.txt", "requirements-windows.lock.txt", "requirements-windows.txt",
         "requirements.txt", "run_v2m_demo_generation.py", "start-web.cmd", "stop-web.cmd", "THIRD_PARTY_NOTICES.md", "train_v2m.py",
     };
@@ -83,7 +85,7 @@ internal sealed class DesktopUpdate
             && !parts[1].Equals("webview2", StringComparison.OrdinalIgnoreCase));
     }
 
-    private static Version ReadVersion(string directory, string name = VersionFile)
+    internal static Version ReadVersion(string directory, string name = VersionFile)
     {
         string path = SafePath(directory, name);
         if (!File.Exists(path) || new FileInfo(path).Length > 40) return null;
@@ -102,7 +104,7 @@ internal sealed class DesktopUpdate
         foreach (string target in targets)
             for (int slash = target.IndexOf('/'); slash >= 0; slash = target.IndexOf('/', slash + 1))
                 if (unique.Contains(target.Substring(0, slash))) throw new InvalidDataException("Overlapping update targets.");
-        if (targets.Length == 0 || targets[targets.Length - 1] != VersionFile)
+        if (!unique.Contains(EditionFile) || targets[targets.Length - 1] != VersionFile)
             throw new InvalidDataException("The update file list has no version marker.");
         return targets;
     }
@@ -194,6 +196,13 @@ internal sealed class DesktopUpdate
         return healthy;
     }
 
+    private static bool IsRyki(string directory)
+    {
+        string marker = SafePath(directory, EditionFile);
+        return File.Exists(marker) && new FileInfo(marker).Length < 128
+            && File.ReadAllText(marker).TrimEnd('\r', '\n') == Edition;
+    }
+
     private void ApplySavedVersion()
     {
         string request = SafePath(work, "rollback-request.txt");
@@ -202,7 +211,7 @@ internal sealed class DesktopUpdate
             Version expected = ReadVersion(work, "rollback-request.txt");
             Version saved = ReadVersion(SafePath(previous, "backup"));
             Version installed = ReadVersion(root);
-            if (expected != null && expected.Equals(saved) && installed != null
+            if (expected != null && expected.Equals(saved) && installed != null && IsRyki(root) && IsRyki(SafePath(previous, "backup"))
                 && installed.Equals(ReadVersion(previous, "installed-version.txt")) && !Directory.Exists(ready))
                 Move(previous, undoing);
             File.Delete(request);
@@ -243,7 +252,7 @@ internal sealed class DesktopUpdate
         try
         {
             Version installed = ReadVersion(root), candidate = ReadVersion(SafePath(ready, "files"));
-            if (installed == null || candidate == null || candidate.Equals(installed)
+            if (!IsRyki(root) || !IsRyki(SafePath(ready, "files")) || installed == null || candidate == null || candidate.Equals(installed)
                 || (candidate.CompareTo(installed) < 0 && !candidate.Equals(ReadVersion(ready, "allow-downgrade"))))
                 throw new InvalidDataException("The staged version cannot be installed over this version.");
             targets = ReadPlan(ready);

@@ -210,6 +210,7 @@ export default Object.freeze({
   "update.legacy_hint": "このバージョンを使用するには ZIP をダウンロードして展開します。",
   "update.local_version": "v{version}（ローカル）",
   "update.legacy_available": "v{version} の ZIP をバージョン履歴からダウンロードできます。",
+  "update.wrong_edition": "別のエディションの ZIP です。Ryki のリリースページから Windows ZIP を選んでください。小二版は別のフォルダーに展開してください。",
   "update.invalid_zip": "完全な FlowHMR Windows 更新 ZIP を選択してください。",
   "update.legacy_zip": "旧版の ZIP です。展開してそのバージョンを起動できます。",
   "update.same_version": "現在と同じバージョンの ZIP です。",

@@ -1,10 +1,10 @@
-# FlowHMR-Windows
+# FlowHMR Windows · Ryki Edition 0.1.0
 
 [简体中文](../../README.md) · [繁體中文](zh-TW.md) · [English](en.md) · **日本語** · [한국어](ko.md) · [Русский](ru.md) · [Français](fr.md)
 
 **FlowHMR-Windows** は、手元の PC で動画からモーションをキャプチャするアプリです。動画を読み込んで一人または複数の人物を選ぶと、3D の動作を再構成し、元動画と同期してプレビューや書き出しができます。動作の再構成には上流の [FlowHMR](https://github.com/flowhmr/flowhmr) モデルを使用します。このリポジトリでは、Windows ポータブル版、モデルと実行環境の管理、および人物選択から書き出しまでのデスクトップ機能を独立して開発・保守しています。
 
-**[Windows ポータブル版をダウンロード](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest/download/FlowHMR-Windows.zip)** · [リリースノート](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest) · [FlowHMR の論文](https://arxiv.org/abs/2610.03691)
+**[Windows ポータブル版をダウンロード](https://github.com/ZAKOsiesta/FlowHMR-Windows/releases/latest/download/FlowHMR-Ryki-Windows.zip)** · [リリースノート](https://github.com/ZAKOsiesta/FlowHMR-Windows/releases/latest) · [FlowHMR の論文](https://arxiv.org/abs/2610.03691)
 
 ## v0.3.6 の変更点
 
@@ -64,7 +64,7 @@ CPU のみのモードと Intel XPU では HaMeR による指の補正は利用�
 
 ## クイックスタート
 
-1. 64 ビットの Windows 10 または 11 で `FlowHMR-Windows.zip` をすべて展開します。展開された `FlowHMR` フォルダーを開き、`FlowHMR.exe` をダブルクリックします。基本パッケージには Python、UI、FBX 書き出しコンポーネントが含まれます。
+1. 64 ビットの Windows 10 または 11 で `FlowHMR-Ryki-Windows.zip` をすべて展開します。展開された `FlowHMR` フォルダーを開き、`FlowHMR.exe` をダブルクリックします。基本パッケージには Python、UI、FBX 書き出しコンポーネントが含まれます。
 2. 右上の **実行環境** を開き、上の表に従ってデバイスに合う環境をダウンロードして有効にします。GPU を使う場合は対応ドライバーをインストールしてください。**CPU** を選ぶ場合、追加の GPU ドライバーは不要です。
 3. **モデル** で **公開モデルをすべてダウンロード**（下载全部公开模型）を選ぶか、モデルを個別に取得します。公開モデルは検証のうえ `models/` に配置され、SAM 3D Body と VGGT-Omega は ModelScope から取得します。指の補正が不要なら個別に取得して HaMeR を省けます。ログインが必要な公式モデルは下表を参照してください。
 4. アプリに動画をドロップし、人物とフレーム範囲を選択して生成します。結果をプレビューしてから、メニューで FBX、VMD、VRMA、または NPZ に書き出せます。
@@ -88,7 +88,7 @@ CPU のみのモードと Intel XPU では HaMeR による指の補正は利用�
 
 ## ヘルプとクレジット
 
-- [Windows での使い方、更新、ソースからのビルド](../../docs/windows.md) · [問題を報告](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/issues/new)
+- [Windows での使い方、更新、ソースからのビルド](../../docs/windows.md) · [問題を報告](https://github.com/ZAKOsiesta/FlowHMR-Windows/issues/new)
 - [UI 翻訳のメンテナンス](../../docs/localization.md)
 - [FlowHMR 公式プロジェクトページ](https://flowhmr.github.io/) · [上流の推論・学習ドキュメント](https://github.com/flowhmr/flowhmr#readme) · [上流の引用形式](https://github.com/flowhmr/flowhmr#citation)
 

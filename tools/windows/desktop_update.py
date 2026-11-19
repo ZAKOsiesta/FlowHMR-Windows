@@ -16,12 +16,15 @@ from urllib.request import Request, urlopen
 from zipfile import BadZipFile, ZipFile
 
 
-REPO = "xiaoerofficial021-collab/FlowHMR-Windows"
+REPO = "ZAKOsiesta/FlowHMR-Windows"
+EDITION = REPO + "/ryki"
+EDITION_FILE = "FlowHMR-Edition.txt"
+TAG_PREFIX = "ryki-v"
 RELEASES_API = f"https://api.github.com/repos/{REPO}/releases?per_page=100"
 RELEASES = f"https://github.com/{REPO}/releases"
-PACKAGE = "FlowHMR-Windows.zip"
+PACKAGE = "FlowHMR-Ryki-Windows.zip"
 VERSION_FILE = "FlowHMR-Version.txt"
-UPDATE_INFO = "FlowHMR-Windows-Update.json"
+UPDATE_INFO = "FlowHMR-Ryki-Windows-Update.json"
 CHECK_INTERVAL = 12 * 60 * 60
 CHECK_TIMEOUT = 5
 MAX_RELEASE_NOTES = 12_000
@@ -29,12 +32,12 @@ _VERSION = re.compile(r"(?:0|[1-9][0-9]{0,8})(?:\.(?:0|[1-9][0-9]{0,8})){2}")
 _CODE_DIRECTORIES = {"flowhmr", "tools", "third_party"}
 _SHARED_DIRECTORIES = {"assets", "configs", "data", "docs"}
 _ROOT_FILES = {
-    VERSION_FILE, ".gitignore", ".gitmodules", "app.py", "check-install.cmd", "download-models.cmd",
+    VERSION_FILE, EDITION_FILE, ".gitignore", ".gitmodules", "app.py", "check-install.cmd", "download-models.cmd",
     "LICENSE", "README.md", "requirements-phc.txt", "requirements-windows.lock.txt",
     "requirements-windows.txt", "requirements.txt", "run_v2m_demo_generation.py", "start-web.cmd",
     "stop-web.cmd", "THIRD_PARTY_NOTICES.md", "train_v2m.py",
 }
-_REQUIRED = {VERSION_FILE, "FlowHMR.exe", "app.py", "runtime/python.exe", "runtime/pythonw.exe",
+_REQUIRED = {VERSION_FILE, EDITION_FILE, "FlowHMR.exe", "app.py", "runtime/python.exe", "runtime/pythonw.exe",
              "tools/web/index.html", "tools/windows/desktop_launcher.pyw", "tools/windows/desktop_update.py",
              "tools/web/static/js/update.js"}
 _TRANSFER = {"download", "verify", "stage", "stopping"}
@@ -72,9 +75,9 @@ def read_version(root, name=VERSION_FILE):
 
 def _portable_release(data):
     tag = data["tag_name"]
-    if not tag.startswith("windows-v") or data.get("draft") or data.get("prerelease"):
+    if not tag.startswith(TAG_PREFIX) or data.get("draft") or data.get("prerelease"):
         return None
-    version = tag.removeprefix("windows-v")
+    version = tag.removeprefix(TAG_PREFIX)
     release_version(version)
     packages = [asset for asset in data["assets"] if asset.get("name") == PACKAGE]
     if len(packages) != 1:
@@ -113,12 +116,27 @@ def published_releases():
     return dict(sorted(releases.items(), key=lambda item: release_version(item[0]), reverse=True))
 
 
+def _check_edition(archive):
+    try:
+        with archive.open(f"FlowHMR/{EDITION_FILE}") as stream:
+            marker = stream.read(128)
+            if len(marker) < 128 and marker.rstrip(b"\r\n") == EDITION.encode("ascii"):
+                return
+    except KeyError:
+        pass
+    raise LocalUpdateError("wrong_edition")
+
+
 def _archive_version(path):
     try:
-        with ZipFile(path) as archive, archive.open(f"FlowHMR/{VERSION_FILE}") as stream:
-            version = stream.read(40).decode("ascii").strip()
+        with ZipFile(path) as archive:
+            _check_edition(archive)
+            with archive.open(f"FlowHMR/{VERSION_FILE}") as stream:
+                version = stream.read(40).decode("ascii").strip()
         release_version(version)
         return version
+    except LocalUpdateError:
+        raise
     except KeyError as error:
         raise LocalUpdateError("legacy_zip") from error
     except (BadZipFile, UnicodeError, ValueError) as error:
@@ -147,6 +165,7 @@ def stage_package(archive_path, destination, version, check):
     required = set()
     members = []
     with ZipFile(archive_path) as archive:
+        _check_edition(archive)
         for item in archive.infolist():
             check()
             name = item.filename.removesuffix("/") if item.is_dir() else item.filename

@@ -1,10 +1,10 @@
-# FlowHMR-Windows
+# FlowHMR Windows · Ryki Edition 0.1.0
 
 [简体中文](../../README.md) · [繁體中文](zh-TW.md) · [English](en.md) · [日本語](ja.md) · [한국어](ko.md) · [Русский](ru.md) · **Français**
 
 **FlowHMR-Windows** permet de capturer des mouvements à partir d’une vidéo, sur votre propre ordinateur. Importez une vidéo, sélectionnez une ou plusieurs personnes, puis reconstruisez leurs mouvements en 3D pour les prévisualiser en synchronisation avec la vidéo et les exporter. La reconstruction utilise le modèle du projet d’origine [FlowHMR](https://github.com/flowhmr/flowhmr). Ce dépôt indépendant maintient l’édition portable pour Windows, la gestion des modèles et des environnements d’exécution, ainsi que le flux de travail de la sélection des personnes à l’export.
 
-**[Télécharger l’édition portable pour Windows](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest/download/FlowHMR-Windows.zip)** · [Notes de version](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest) · [Article FlowHMR](https://arxiv.org/abs/2610.03691)
+**[Télécharger l’édition portable pour Windows](https://github.com/ZAKOsiesta/FlowHMR-Windows/releases/latest/download/FlowHMR-Ryki-Windows.zip)** · [Notes de version](https://github.com/ZAKOsiesta/FlowHMR-Windows/releases/latest) · [Article FlowHMR](https://arxiv.org/abs/2610.03691)
 
 ## Nouveautés de la v0.3.6
 
@@ -64,7 +64,7 @@ Pour tester vous-même l’application, utilisez la [vidéo source d’exemple](
 
 ## Démarrage rapide
 
-1. Sous Windows 10 ou 11 en 64 bits, extrayez entièrement `FlowHMR-Windows.zip`, ouvrez le dossier `FlowHMR` extrait et lancez `FlowHMR.exe`. Le paquet de base comprend Python, l’interface de bureau et le composant d’export FBX.
+1. Sous Windows 10 ou 11 en 64 bits, extrayez entièrement `FlowHMR-Ryki-Windows.zip`, ouvrez le dossier `FlowHMR` extrait et lancez `FlowHMR.exe`. Le paquet de base comprend Python, l’interface de bureau et le composant d’export FBX.
 2. Ouvrez **Environnement** en haut à droite, puis téléchargez et activez l’environnement adapté à votre matériel d’après le tableau ci-dessus. Mettez à jour votre pilote graphique si nécessaire. Le mode CPU ne nécessite pas de pilote graphique.
 3. Dans **Modèles**, choisissez **Télécharger tous les modèles publics** (下载全部公开模型), ou téléchargez les modèles un par un. Les fichiers sont vérifiés avant d’être placés dans `models/`. SAM 3D Body et VGGT-Omega proviennent de ModelScope. Si l’affinage des doigts est inutile, vous pouvez omettre HaMeR lors du téléchargement individuel. Consultez le tableau ci-dessous pour les modèles officiels qui nécessitent une connexion.
 4. Déposez une vidéo dans l’application, sélectionnez les personnes et la plage d’images, puis lancez la génération. Vérifiez le résultat dans l’aperçu, puis exportez-le en FBX, VMD, VRMA ou NPZ depuis le menu.
@@ -88,7 +88,7 @@ Pour l’arborescence d’installation manuelle, les sources de téléchargement
 
 ## Aide et crédits du projet
 
-- [Utilisation sous Windows, mise à jour et compilation depuis les sources](../../docs/windows.md) · [Signaler un problème](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/issues/new)
+- [Utilisation sous Windows, mise à jour et compilation depuis les sources](../../docs/windows.md) · [Signaler un problème](https://github.com/ZAKOsiesta/FlowHMR-Windows/issues/new)
 - [Maintenir les traductions de l’interface](../../docs/localization.md)
 - [Site officiel du projet FlowHMR](https://flowhmr.github.io/) · [Documentation du projet d’origine pour l’inférence et l’entraînement](https://github.com/flowhmr/flowhmr#readme) · [Format de citation](https://github.com/flowhmr/flowhmr#citation)
 

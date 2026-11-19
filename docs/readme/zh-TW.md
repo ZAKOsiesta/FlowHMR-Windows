@@ -1,10 +1,10 @@
-# FlowHMR-Windows
+# FlowHMR Windows · Ryki Edition 0.1.0
 
 [简体中文](../../README.md) · **繁體中文** · [English](en.md) · [日本語](ja.md) · [한국어](ko.md) · [Русский](ru.md) · [Français](fr.md)
 
 **FlowHMR-Windows** 是一款在本機執行的影片動作擷取軟體。匯入一般影片後，可選取一位或多位人物，重建他們的 3D 人體動作，並同步預覽與匯出。動作重建採用上游 [FlowHMR](https://github.com/flowhmr/flowhmr) 模型；本儲存庫獨立維護 Windows 可攜版、模型與執行環境管理，以及從選人到匯出的桌面工作流程。
 
-**[下載 Windows 可攜版](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest/download/FlowHMR-Windows.zip)** · [查看發行說明](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/releases/latest) · [FlowHMR 論文](https://arxiv.org/abs/2610.03691)
+**[下載 Windows 可攜版](https://github.com/ZAKOsiesta/FlowHMR-Windows/releases/latest/download/FlowHMR-Ryki-Windows.zip)** · [查看發行說明](https://github.com/ZAKOsiesta/FlowHMR-Windows/releases/latest) · [FlowHMR 論文](https://arxiv.org/abs/2610.03691)
 
 ## v0.3.6 更新
 
@@ -64,7 +64,7 @@
 
 ## 快速開始
 
-1. 在 64 位元 Windows 10 或 11 完整解壓縮 `FlowHMR-Windows.zip`，進入解壓縮後的 `FlowHMR` 資料夾，按兩下 `FlowHMR.exe`。基礎套件內含 Python、介面元件和 FBX 匯出元件。
+1. 在 64 位元 Windows 10 或 11 完整解壓縮 `FlowHMR-Ryki-Windows.zip`，進入解壓縮後的 `FlowHMR` 資料夾，按兩下 `FlowHMR.exe`。基礎套件內含 Python、介面元件和 FBX 匯出元件。
 2. 開啟右上角的 **執行環境**，依上表下載並啟用適用於裝置的環境。使用 GPU 前，請安裝相容的顯示卡驅動程式；選擇 **CPU** 不需另裝顯示卡驅動程式。
 3. 開啟 **模型**，選擇 **下載所有公開模型**（下载全部公开模型），或逐項下載。公開模型經驗證後會放入 `models/`，其中 SAM 3D Body 和 VGGT-Omega 由 ModelScope 提供。不需要手指精修時可以略過 HaMeR。需登入下載的官方模型請依下表取得。
 4. 將影片拖入軟體，選取要處理的人物和影格範圍，再開始生成。完成後先預覽，再從選單匯出 FBX、VMD、VRMA 或 NPZ。
@@ -88,7 +88,7 @@
 
 ## 說明與專案來源
 
-- [Windows 使用、升級和原始碼建置說明](../../docs/windows.md) · [回報問題](https://github.com/xiaoerofficial021-collab/FlowHMR-Windows/issues/new)
+- [Windows 使用、升級和原始碼建置說明](../../docs/windows.md) · [回報問題](https://github.com/ZAKOsiesta/FlowHMR-Windows/issues/new)
 - [維護介面語言](../../docs/localization.md)
 - [FlowHMR 官方專案頁](https://flowhmr.github.io/) · [上游推論與訓練資料](https://github.com/flowhmr/flowhmr#readme) · [上游論文引用格式](https://github.com/flowhmr/flowhmr#citation)
 
